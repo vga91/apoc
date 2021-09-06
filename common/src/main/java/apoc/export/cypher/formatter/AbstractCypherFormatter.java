@@ -3,8 +3,11 @@ package apoc.export.cypher.formatter;
 import apoc.export.util.ExportConfig;
 import apoc.export.util.ExportFormat;
 import apoc.export.util.Reporter;
+import apoc.path.LabelMatcher;
+import apoc.path.RelMatcher;
 import apoc.util.Util;
 import apoc.util.collection.Iterables;
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.GraphDatabaseService;
@@ -152,9 +155,19 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 									   Iterable<Node> nodes, Map<String, Set<String>> uniqueConstraints,
 									   ExportConfig exportConfig,
 									   PrintWriter out, Reporter reporter,
-									   GraphDatabaseService db) {
+									   GraphDatabaseService db,
+									   LabelMatcher labelMatcher) {
 		AtomicInteger nodeCount = new AtomicInteger(0);
+		final AbstractMap.SimpleImmutableEntry<Set<String>, Set<String>> nullEntry = new AbstractMap.SimpleImmutableEntry<>(null, null);
 		Function<Node, Map.Entry<Set<String>, Set<String>>> keyMapper = (node) -> {
+			if (!labelMatcher.matchesLabels(node, true)) {
+				return nullEntry;
+			}
+//			if (node.getId() == 0L) {
+//				return nullEntry;// new AbstractMap.SimpleImmutableEntry<>(Collections.emptySet(), Collections.emptySet());
+//			}
+
+			// todo - se non trovo nessuna del group, non devo metterlo nel groupedData, verificare...
 			try (Transaction tx = db.beginTx()) {
 				node = tx.getNodeById(node.getId());
 				Set<String> idProperties = CypherFormatterUtils.getNodeIdProperties(node, uniqueConstraints).keySet();
@@ -163,8 +176,11 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 				return new AbstractMap.SimpleImmutableEntry<>(labels, idProperties);
 			}
 		};
+		
 		Map<Map.Entry<Set<String>, Set<String>>, List<Node>> groupedData = StreamSupport.stream(nodes.spliterator(), true)
+				.filter(node -> true ) // provare con filtro
 				.collect(Collectors.groupingByConcurrent(keyMapper));
+		groupedData.remove(nullEntry);
 
 		AtomicInteger propertiesCount = new AtomicInteger(0);
 
@@ -261,10 +277,14 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 											   String setClause, Iterable<Relationship> relationship,
 											   Map<String, Set<String>> uniqueConstraints, ExportConfig exportConfig,
 											   PrintWriter out, Reporter reporter,
-											   GraphDatabaseService db) {
+											   GraphDatabaseService db,
+											   RelMatcher relMatcher) {
 		AtomicInteger relCount = new AtomicInteger(0);
 
 		Function<Relationship, Map<String, Object>> keyMapper = (rel) -> {
+			if (!relMatcher.matchesRels(rel)) {
+				return Collections.emptyMap();
+			}
 			try (Transaction tx = db.beginTx()) {
 				rel = tx.getRelationshipById(rel.getId());
 				Node start = rel.getStartNode();
@@ -288,6 +308,7 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 		};
 		Map<Map<String, Object>, List<Relationship>> groupedData = StreamSupport.stream(relationship.spliterator(), true)
 				.collect(Collectors.groupingByConcurrent(keyMapper));
+		groupedData.remove(Collections.emptyMap());
 
 		AtomicInteger propertiesCount = new AtomicInteger(0);
 		AtomicInteger batchCount = new AtomicInteger(0);

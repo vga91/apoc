@@ -69,6 +69,9 @@ public class ExportConfig extends CompressionConfig {
     private long awaitForIndexes;
     private final Map<String, Object> samplingConfig;
 
+    private final List<String> nodeFilter;
+    private final List<String> relFilter;
+
     public int getBatchSize() {
         return batchSize;
     }
@@ -133,6 +136,9 @@ public class ExportConfig extends CompressionConfig {
         this.samplingConfig = (Map<String, Object>) config.getOrDefault("samplingConfig", new HashMap<>());
         this.unwindBatchSize = ((Number)getOptimizations().getOrDefault("unwindBatchSize", DEFAULT_UNWIND_BATCH_SIZE)).intValue();
         this.awaitForIndexes = ((Number)config.getOrDefault("awaitForIndexes", 300)).longValue();
+        // todo - Collections.emptyMap() convertibile in Map<String, String>
+        this.nodeFilter = (List<String>) config.getOrDefault("nodeFilter", Collections.emptyList());
+        this.relFilter = (List<String>) config.getOrDefault("relFilter", Collections.emptyList());
         this.multipleRelationshipsWithType = toBoolean(config.get(RELS_WITH_TYPE_KEY));
         this.source = new NodeConfig((Map<String, String>) config.get("source"));
         this.target = new NodeConfig((Map<String, String>) config.get("target"));
@@ -244,6 +250,14 @@ public class ExportConfig extends CompressionConfig {
 
     public boolean isSampling() {
         return sampling;
+    }
+
+    public List<String> getNodeFilter() {
+        return nodeFilter;
+    }
+
+    public List<String> getRelFilter() {
+        return relFilter;
     }
     
     public boolean ifNotExists() {

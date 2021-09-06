@@ -5,4 +5,4 @@ CREATE (b:Person {name: 'Matt', surname: 'Jackson'})
 CREATE (c:Person {name: 'Jenny', surname: 'White'})
 CREATE (d:Person {name: 'Susan', surname: 'Brown'})
 CREATE (e:Person {name: 'Tom', surname: 'Taylor'})
-CREATE (a)-[:KNOWS]->(b);
+CREATE (a)-[:KNOWS {since: 1999}]->(b);

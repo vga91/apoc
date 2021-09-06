@@ -65,7 +65,7 @@ public class ExportCypher {
     @Description("apoc.export.cypher.all(file,config) - exports whole database incl. indexes as cypher statements to the provided file")
     public Stream<DataProgressInfo> all(@Name(value = "file",defaultValue = "") String fileName, @Name(value = "config",defaultValue = "{}") Map<String, Object> config) throws IOException {
         if (Util.isNullOrEmpty(fileName)) fileName=null;
-        String source = String.format("database: nodes(%d), rels(%d)", Util.nodeCount(tx), Util.relCount(tx));
+        String source = "database: nodes(%d), rels(%d)";
         return exportCypher(fileName, source, new DatabaseSubGraph(tx), new ExportConfig(config), false);
     }
 
@@ -73,7 +73,7 @@ public class ExportCypher {
     @Description("apoc.export.cypher.data(nodes,rels,file,config) - exports given nodes and relationships incl. indexes as cypher statements to the provided file")
     public Stream<DataProgressInfo> data(@Name("nodes") List<Node> nodes, @Name("rels") List<Relationship> rels, @Name(value = "file",defaultValue = "") String fileName, @Name(value = "config",defaultValue = "{}") Map<String, Object> config) throws IOException {
         if (Util.isNullOrEmpty(fileName)) fileName=null;
-        String source = String.format("data: nodes(%d), rels(%d)", nodes.size(), rels.size());
+        String source = "data: nodes(%d), rels(%d)";
         return exportCypher(fileName, source, new NodesAndRelsSubGraph(tx, nodes, rels), new ExportConfig(config), false);
     }
 
@@ -84,7 +84,7 @@ public class ExportCypher {
 
         Collection<Node> nodes = (Collection<Node>) graph.get("nodes");
         Collection<Relationship> rels = (Collection<Relationship>) graph.get("relationships");
-        String source = String.format("graph: nodes(%d), rels(%d)", nodes.size(), rels.size());
+        String source = "graph: nodes(%d), rels(%d)";
         return exportCypher(fileName, source, new NodesAndRelsSubGraph(tx, nodes, rels), new ExportConfig(config), false);
     }
 
@@ -100,8 +100,7 @@ public class ExportCypher {
         } catch (IllegalStateException e) {
             throw new RuntimeException("Full-text indexes on relationships are not supported, please delete them in order to complete the process");
         }
-        String source = String.format("statement: nodes(%d), rels(%d)",
-                Iterables.count(graph.getNodes()), Iterables.count(graph.getRelationships()));
+        String source = "statement: nodes(%d), rels(%d)";
         return exportCypher(fileName, source, graph, c, false);
     }
 
@@ -109,7 +108,8 @@ public class ExportCypher {
     @Description("apoc.export.cypher.schema(file,config) - exports all schema indexes and constraints to cypher")
     public Stream<DataProgressInfo> schema(@Name(value = "file",defaultValue = "") String fileName, @Name(value = "config",defaultValue = "{}") Map<String, Object> config) throws IOException {
         if (Util.isNullOrEmpty(fileName)) fileName=null;
-        String source = String.format("database: nodes(%d), rels(%d)", Util.nodeCount(tx), Util.relCount(tx));
+//        String source = String.format("database: nodes(%d), rels(%d)", Util.nodeCount(tx), Util.relCount(tx));
+        String source = "database: nodes(%d), rels(%d)";
         return exportCypher(fileName, source, new DatabaseSubGraph(tx), new ExportConfig(config), true);
     }
 
@@ -122,7 +122,7 @@ public class ExportCypher {
         boolean separatedFiles = !onlySchema && c.separateFiles();
         ExportFileManager cypherFileManager = FileManagerFactory.createFileManager(fileName, separatedFiles, c);
 
-        if (c.streamStatements()) {
+        if (c.streamStatements()) { // todo - testare questo...
             long timeout = c.getTimeoutSeconds();
             final BlockingQueue<DataProgressInfo> queue = new ArrayBlockingQueue<>(1000);
             ProgressReporter reporterWithConsumer = reporter.withConsumer(
@@ -145,6 +145,9 @@ public class ExportCypher {
             exporter.exportOnlySchema(cypherFileManager, c);
         else
             exporter.export(c, reporter, cypherFileManager);
+        
+        // from graph: nodes(%d), rels(%d) to graph: nodes(123), rels(123)
+        reporter.formatSource();
     }
 
     public static class DataProgressInfo {
