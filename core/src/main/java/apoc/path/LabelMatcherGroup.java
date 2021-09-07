@@ -40,6 +40,12 @@ public class LabelMatcherGroup {
     public LabelMatcherGroup addLabel(String filterString) {
         if (filterString !=  null && !filterString.isEmpty()) {
             LabelMatcher matcher;
+            final Matcher regExMatcher = LABEL_TYPE_PATTERN.matcher(filterString);
+            String props = nodePropFilter;
+            if (regExMatcher.matches()) {
+                filterString = regExMatcher.group(LABEL_TYPE_REGEX);
+                props = getPropsMatched(regExMatcher, props);
+            }
 
             char operator = filterString.charAt(0);
 

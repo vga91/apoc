@@ -108,7 +108,6 @@ public class ExportCypher {
     @Description("apoc.export.cypher.schema(file,config) - exports all schema indexes and constraints to cypher")
     public Stream<DataProgressInfo> schema(@Name(value = "file",defaultValue = "") String fileName, @Name(value = "config",defaultValue = "{}") Map<String, Object> config) throws IOException {
         if (Util.isNullOrEmpty(fileName)) fileName=null;
-//        String source = String.format("database: nodes(%d), rels(%d)", Util.nodeCount(tx), Util.relCount(tx));
         String source = "database: nodes(%d), rels(%d)";
         return exportCypher(fileName, source, new DatabaseSubGraph(tx), new ExportConfig(config), true);
     }
@@ -122,7 +121,7 @@ public class ExportCypher {
         boolean separatedFiles = !onlySchema && c.separateFiles();
         ExportFileManager cypherFileManager = FileManagerFactory.createFileManager(fileName, separatedFiles, c);
 
-        if (c.streamStatements()) { // todo - testare questo...
+        if (c.streamStatements()) {
             long timeout = c.getTimeoutSeconds();
             final BlockingQueue<DataProgressInfo> queue = new ArrayBlockingQueue<>(1000);
             ProgressReporter reporterWithConsumer = reporter.withConsumer(

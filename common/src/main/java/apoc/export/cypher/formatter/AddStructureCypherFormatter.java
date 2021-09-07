@@ -56,7 +56,7 @@ public class AddStructureCypherFormatter extends AbstractCypherFormatter impleme
 
 	@Override
 	public void statementForNodes(Iterable<Node> node, Map<String, Set<String>> uniqueConstraints, ExportConfig exportConfig, PrintWriter out, Reporter reporter, GraphDatabaseService db, LabelMatcher labelMatcher) {
-		/* todo	*/buildStatementForNodes("MERGE ", "ON CREATE SET ", node, uniqueConstraints, exportConfig, out, reporter, db, labelMatcher);
+		buildStatementForNodes("MERGE ", "ON CREATE SET ", node, uniqueConstraints, exportConfig, out, reporter, db, labelMatcher);
 	}
 
 	@Override

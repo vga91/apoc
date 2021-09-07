@@ -55,7 +55,7 @@ public class CreateCypherFormatter extends AbstractCypherFormatter implements Cy
 
     @Override
     public void statementForNodes(Iterable<Node> node, Map<String, Set<String>> uniqueConstraints, ExportConfig exportConfig, PrintWriter out, Reporter reporter, GraphDatabaseService db, LabelMatcher labelMatcher) {
-        /* todo	*/ buildStatementForNodes("CREATE ", "SET ", node, uniqueConstraints, exportConfig, out, reporter, db, labelMatcher);
+        buildStatementForNodes("CREATE ", "SET ", node, uniqueConstraints, exportConfig, out, reporter, db, labelMatcher);
     }
 
     @Override

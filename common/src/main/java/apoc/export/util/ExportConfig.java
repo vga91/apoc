@@ -136,7 +136,6 @@ public class ExportConfig extends CompressionConfig {
         this.samplingConfig = (Map<String, Object>) config.getOrDefault("samplingConfig", new HashMap<>());
         this.unwindBatchSize = ((Number)getOptimizations().getOrDefault("unwindBatchSize", DEFAULT_UNWIND_BATCH_SIZE)).intValue();
         this.awaitForIndexes = ((Number)config.getOrDefault("awaitForIndexes", 300)).longValue();
-        // todo - Collections.emptyMap() convertibile in Map<String, String>
         this.nodeFilter = (List<String>) config.getOrDefault("nodeFilter", Collections.emptyList());
         this.relFilter = (List<String>) config.getOrDefault("relFilter", Collections.emptyList());
         this.multipleRelationshipsWithType = toBoolean(config.get(RELS_WITH_TYPE_KEY));

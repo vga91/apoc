@@ -144,6 +144,7 @@ public class MultiStatementCypherSubGraphExporter {
 
     private void exportNodesUnwindBatch(PrintWriter out, Reporter reporter) {
         if (graph.getNodes().iterator().hasNext()) {
+            this.cypherFormat.statementForNodes(graph.getNodes(), uniqueConstraints, exportConfig, out, reporter, db, labelMatcher);
             this.cypherFormat.statementForNodes(graph.getNodes(), uniqueConstraints, exportConfig, out, reporter, db);
             out.flush();
         }
@@ -172,6 +173,11 @@ public class MultiStatementCypherSubGraphExporter {
 
     private void exportRelationships(PrintWriter out, Reporter reporter, int batchSize) {
         if (graph.getRelationships().iterator().hasNext()) {
+            final long count = appendRelationships(out, batchSize, reporter);
+            if (count > 0) {
+                commit(out);
+                out.flush();
+            }
             begin(out);
             appendRelationships(out, batchSize, reporter);
             commit(out);
@@ -255,6 +261,13 @@ public class MultiStatementCypherSubGraphExporter {
 
                     if (index.isConstraintIndex()) {
                         return null;  // delegate to the constraint creation
+                    }
+                    final boolean isNode = "NODE".equals(map.get("entityType"));
+                    final Set<String> setTokens = Set.copyOf(tokenNames);
+                    
+                    if (isNode && !this.labelMatcher.isMatchedSchema(props, setTokens) 
+                            || !this.relMatcher.isMatchedSchema(props, setTokens)) {
+                        return null;
                     }
 
                     if (indexType == IndexType.FULLTEXT) {
@@ -368,6 +381,11 @@ public class MultiStatementCypherSubGraphExporter {
             Set<String> props = StreamSupport
                     .stream(indexDefinition.getPropertyKeys().spliterator(), false)
                     .collect(Collectors.toSet());
+            final List<String> propsList = List.copyOf(props);
+            if (indexDefinition.isNodeIndex() && !this.labelMatcher.isMatchedSchema(propsList, label)
+                    || !this.relMatcher.isMatchedSchema(propsList, label)) {
+                continue;
+            }
             indexNames.add(indexDefinition.getName());
             indexedProperties.addAll(props);
             if (indexDefinition.isConstraintIndex()) { // we use the constraint that have few properties

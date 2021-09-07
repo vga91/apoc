@@ -128,16 +128,6 @@ public class ExportCypherEnterpriseFeaturesTest {
             afterTwoLabelsWithOneCompoundConstraintEach();
         }
     }
-    
-//    @Test
-//    public void testFilterWithRelConstraint() {
-//        // todo - mettere rel constraint e verificare che il filtro funzioni...
-//        session.writeTransaction(tx -> {
-//            tx.run("CREATE CONSTRAINT ON ()-[rel:KNOWS]-() ASSERT exists(rel.day)");
-//            tx.commit();
-//            return null;
-//        });
-//    }
 
     private void assertExportStatement(String expectedStatement, String fileName) {
         assertEquals(expectedStatement, readFileToString(new File(directory, fileName)));
