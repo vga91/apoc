@@ -23,3 +23,16 @@ RETURN apoc.temporal.formatDuration( duration({seconds: 10000}), "hour_minute") 
 | output
 | "02:46"
 |===
+
+[source,cypher]
+----
+WITH duration.between(datetime("2017-06-02T18:40:32"), datetime("2019-07-03T19:41:33")) AS duration
+RETURN apoc.temporal.formatDuration(duration, "yy 'years' MM 'months' dd 'days' - HH:mm:ss", true) AS value
+----
+
+.Results
+[opts="header"]
+|===
+| value
+| 02 years 01 months 01 days - 01:01:01
+|===
