@@ -28,6 +28,9 @@ import java.util.function.Consumer;
 
 
 public class JsonFormat implements Format {
+    public static final String RELS = "rels";
+    public static final String NODES = "nodes";
+
     enum Format {JSON_LINES, ARRAY_JSON, JSON, JSON_ID_AS_KEYS}
     private final GraphDatabaseService db;
     private final Format format;
@@ -89,11 +92,11 @@ public class JsonFormat implements Format {
     private void writeJsonRelationshipContainerStart(JsonGenerator jsonGenerator) throws IOException {
         switch (format) {
             case JSON:
-                jsonGenerator.writeFieldName("rels");
+                jsonGenerator.writeFieldName(RELS);
                 jsonGenerator.writeStartArray();
                 break;
             case JSON_ID_AS_KEYS:
-                jsonGenerator.writeFieldName("rels");
+                jsonGenerator.writeFieldName(RELS);
                 jsonGenerator.writeStartObject();
                 break;
         }
@@ -114,12 +117,12 @@ public class JsonFormat implements Format {
         switch (format) {
             case JSON:
                 jsonGenerator.writeStartObject();
-                jsonGenerator.writeFieldName("nodes");
+                jsonGenerator.writeFieldName(NODES);
                 jsonGenerator.writeStartArray();
                 break;
             case JSON_ID_AS_KEYS:
                 jsonGenerator.writeStartObject();
-                jsonGenerator.writeFieldName("nodes");
+                jsonGenerator.writeFieldName(NODES);
                 jsonGenerator.writeStartObject();
                 break;
         }
@@ -270,10 +273,10 @@ public class JsonFormat implements Format {
     private void writePath(Reporter reporter, JsonGenerator jsonGenerator, ExportConfig config, Path path) throws IOException {
         jsonGenerator.writeStartObject();
         jsonGenerator.writeObjectField("length", path.length());
-        jsonGenerator.writeArrayFieldStart("rels");
+        jsonGenerator.writeArrayFieldStart(RELS);
         writeRels(path.relationships(), reporter, jsonGenerator, config);
         jsonGenerator.writeEndArray();
-        jsonGenerator.writeArrayFieldStart("nodes");
+        jsonGenerator.writeArrayFieldStart(NODES);
         writeNodes(path.nodes(), reporter, jsonGenerator, config);
         jsonGenerator.writeEndArray();
         jsonGenerator.writeEndObject();

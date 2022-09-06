@@ -15,6 +15,7 @@ import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
 import org.neo4j.procedure.TerminationGuard;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.stream.Stream;
@@ -47,8 +48,16 @@ public class ImportJson {
                          final Scanner scanner = new Scanner(reader).useDelimiter("\n|\r");
                          JsonImporter jsonImporter = new JsonImporter(importJsonConfig, db, reporter)) {
                         while (scanner.hasNext() && !Util.transactionIsTerminated(terminationGuard)) {
-                            Map<String, Object> row = JsonUtil.OBJECT_MAPPER.readValue(scanner.nextLine(), Map.class);
-                            jsonImporter.importRow(row);
+                            final String content = scanner.nextLine();
+                            final Object line = JsonUtil.OBJECT_MAPPER.readValue(content, Object.class);
+                            if (line instanceof Map) {
+                                jsonImporter.importRow((Map<String, Object>) line);
+                            } else if (line instanceof List) {
+                                // ARRAY_JSON case
+                                ((List<Map<String, Object>>) line).forEach(jsonImporter::importRow);
+                            } else {
+                                throw new RuntimeException("Unable to convert from JSON with content: " + content);
+                            }
                         }
                     }
 

@@ -55,6 +55,10 @@ public class ExportJsonTest {
     @Before
     public void setup() {
         TestUtil.registerProcedure(db, ExportJson.class, ImportJson.class, Graphs.class);
+        createDataset();
+    }
+
+    private void createDataset() {
         db.executeTransactionally("CREATE (f:User {name:'Adam',age:42,male:true,kids:['Sam','Anna','Grace'], born:localdatetime('2015185T19:32:24'), place:point({latitude: 13.1, longitude: 33.46789})})-[:KNOWS {since: 1993, bffSince: duration('P5M1.5D')}]->(b:User {name:'Jim',age:42}),(c:User {age:12})");
     }
 
@@ -78,10 +82,15 @@ public class ExportJsonTest {
         TestUtil.testCall(db, "CALL apoc.export.json.all($file, $config)", params,
                 (r) -> assertResults(filename, r, "database")
         );
-        
+
+        commonRoundtripAssertions(params);
+
+    }
+
+    private void commonRoundtripAssertions(Map<String, Object> params) {
         db.executeTransactionally("MATCH (n) DETACH DELETE n");
 
-        TestUtil.testCall(db, "CALL apoc.import.json($file, $config) ", params,
+        TestUtil.testCall(db, "CALL apoc.import.json($file, $config)", params,
                 r -> assertEquals(3L, r.get("nodes")));
 
         TestUtil.testResult(db, "MATCH (n) RETURN n order by coalesce(n.name, '')", r -> {
@@ -107,50 +116,35 @@ public class ExportJsonTest {
     }
 
     @Test
-    public void testJsonRoundtrip1() {
+    public void testJsonRoundtripWithJsonFormats() {
         db.executeTransactionally("CREATE CONSTRAINT IF NOT EXISTS FOR (n:User) REQUIRE n.neo4jImportId IS UNIQUE;");
-        String filename = "all.json.gzip";
+        
+        Arrays.stream(Format.values())
+                .map(Format::name)
+                .forEach(jsonFormat -> {
+            System.out.println("Current jsonFormat: " + jsonFormat);
+            String filename = jsonFormat + "_all.json";
+        
 
-        TestUtil.testCall(db, "CALL apoc.export.json.all($file, {jsonFormat: $jsonFormat})",
-                map("file", filename, "jsonFormat", Format.JSON_LINES.name()),
-                (r) -> assertResults(filename, r, "database"));
-        assertFileEquals(filename);
-
-
-        db.executeTransactionally("MATCH (n) DETACH DELETE n");
-
-        TestUtil.testCall(db, "CALL apoc.import.json($file, $config) ", map(),
-                r -> assertEquals(3L, r.get("nodes")));
-
-        TestUtil.testResult(db, "MATCH (n) RETURN n order by coalesce(n.name, '')", r -> {
-            final ResourceIterator<Node> iterator = r.columnAs("n");
-            final Node first = iterator.next();
-            assertEquals(12L, first.getProperty("age"));
-            assertFalse(first.hasProperty("name"));
-            assertEquals(List.of(Label.label("User")), first.getLabels());
-
-            final Node second = iterator.next();
-            assertEquals(42L, second.getProperty("age"));
-            assertEquals("Adam", second.getProperty("name"));
-            assertEquals(List.of(Label.label("User")), second.getLabels());
-
-            final Node third = iterator.next();
-            assertEquals(42L, third.getProperty("age"));
-            assertEquals("Jim", third.getProperty("name"));
-            assertEquals(List.of(Label.label("User")), third.getLabels());
-
-            assertFalse(iterator.hasNext());
+            TestUtil.testCall(db, "CALL apoc.export.json.all($file, $config)",
+                    map("file", filename, "config", map("jsonFormat", jsonFormat)),
+                    (r) -> assertResults(filename, r, "database"));
+            
+            final Map<String, Object> params = map("file", filename, "config", map());
+            
+            commonRoundtripAssertions(params);
+            db.executeTransactionally("MATCH (n) DETACH DELETE n");
+            createDataset();
         });
     }
 
     @Test
     public void testExportAllJsonArray() {
-//        Arrays.stream(JsonFormat.Format.values())
-//                .map(Format::name)
-//                .forEach(format -> {
-
-        
-//        });
+        String filename = "all_array.json";
+        TestUtil.testCall(db, "CALL apoc.export.json.all($file, {jsonFormat: 'ARRAY_JSON'})",
+                map("file", filename),
+                (r) -> assertResults(filename, r, "database"));
+        assertFileEquals(filename);
     }
 
     @Test

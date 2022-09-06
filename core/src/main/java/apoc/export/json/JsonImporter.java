@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -67,6 +68,28 @@ public class JsonImporter implements Closeable {
     }
 
     public void importRow(Map<String, Object> param) {
+        final Object nodes = param.get(JsonFormat.NODES);
+        // with JSON_LINES case (default) "nodes" key is not present 
+        if (nodes != null) {
+            if (nodes instanceof List) {
+                // JSON case
+                ((List<Map<String, Object>>)nodes).forEach(this::importRow);
+
+                Optional.ofNullable((List<Map<String, Object >>) param.get(JsonFormat.RELS))
+                        .ifPresent(rels -> rels.forEach(this::importRow));
+            } else if (nodes instanceof Map) {
+                // JSON_ID_AS_KEYS case
+                ((Map<String, Map<String, Object>>) nodes).values().forEach(this::importRow);
+
+                Optional.ofNullable((Map<String, Map<String, Object>>) param.get(JsonFormat.RELS))
+                        .ifPresent(rels -> rels.values().forEach(this::importRow));
+            } else {
+                throw new RuntimeException("Unable to convert from JSON nodes with content: " + nodes);
+            }
+            return;
+        }
+        
+        
         final String type = (String) param.get("type");
 
         manageEntityType(type);
