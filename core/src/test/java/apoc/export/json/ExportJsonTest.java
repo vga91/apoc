@@ -18,6 +18,7 @@ import org.neo4j.test.rule.DbmsRule;
 import org.neo4j.test.rule.ImpermanentDbmsRule;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -71,7 +72,7 @@ public class ExportJsonTest {
 
     @Test
     public void testJsonRoundtrip() {
-        db.executeTransactionally("CREATE CONSTRAINT FOR (n:User) REQUIRE n.neo4jImportId IS UNIQUE;");
+        db.executeTransactionally("CREATE CONSTRAINT IF NOT EXISTS FOR (n:User) REQUIRE n.neo4jImportId IS UNIQUE;");
         String filename = "all.json.gzip";
         final Map<String, Object> params = map("file", filename, "config", map(COMPRESSION, CompressionAlgo.GZIP.name()));
         TestUtil.testCall(db, "CALL apoc.export.json.all($file, $config)", params,
@@ -106,12 +107,50 @@ public class ExportJsonTest {
     }
 
     @Test
-    public void testExportAllJsonArray() {
-        String filename = "all_array.json";
-        TestUtil.testCall(db, "CALL apoc.export.json.all($file, {jsonFormat: 'ARRAY_JSON'})",
-                map("file", filename),
+    public void testJsonRoundtrip1() {
+        db.executeTransactionally("CREATE CONSTRAINT IF NOT EXISTS FOR (n:User) REQUIRE n.neo4jImportId IS UNIQUE;");
+        String filename = "all.json.gzip";
+
+        TestUtil.testCall(db, "CALL apoc.export.json.all($file, {jsonFormat: $jsonFormat})",
+                map("file", filename, "jsonFormat", Format.JSON_LINES.name()),
                 (r) -> assertResults(filename, r, "database"));
         assertFileEquals(filename);
+
+
+        db.executeTransactionally("MATCH (n) DETACH DELETE n");
+
+        TestUtil.testCall(db, "CALL apoc.import.json($file, $config) ", map(),
+                r -> assertEquals(3L, r.get("nodes")));
+
+        TestUtil.testResult(db, "MATCH (n) RETURN n order by coalesce(n.name, '')", r -> {
+            final ResourceIterator<Node> iterator = r.columnAs("n");
+            final Node first = iterator.next();
+            assertEquals(12L, first.getProperty("age"));
+            assertFalse(first.hasProperty("name"));
+            assertEquals(List.of(Label.label("User")), first.getLabels());
+
+            final Node second = iterator.next();
+            assertEquals(42L, second.getProperty("age"));
+            assertEquals("Adam", second.getProperty("name"));
+            assertEquals(List.of(Label.label("User")), second.getLabels());
+
+            final Node third = iterator.next();
+            assertEquals(42L, third.getProperty("age"));
+            assertEquals("Jim", third.getProperty("name"));
+            assertEquals(List.of(Label.label("User")), third.getLabels());
+
+            assertFalse(iterator.hasNext());
+        });
+    }
+
+    @Test
+    public void testExportAllJsonArray() {
+//        Arrays.stream(JsonFormat.Format.values())
+//                .map(Format::name)
+//                .forEach(format -> {
+
+        
+//        });
     }
 
     @Test
