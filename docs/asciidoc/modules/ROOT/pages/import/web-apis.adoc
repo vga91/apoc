@@ -18,14 +18,19 @@ If you want to remove these constraints please set `apoc.import.file.use_neo4j_c
 | CALL apoc.load.xml('http://example.com/test.xml', ['xPath'], [config]) YIELD value as doc CREATE (p:Person) SET p.name = doc.name | load from XML URL (e.g. web-api) to import XML as single nested map with attributes and `+_type+`, `+_text+` and `+_children+` fields.
 |===
 
-== Load Single File From Compressed File (zip/tar/tar.gz/tgz)
+== Load Single File From Archived File (zip/tar/tar.gz/tgz)
 
-When loading data from compressed files, we need to put the `!` character before the file name or path in the compressed file.
+When loading data from archived files, we need to put the `!` character before the file name or path in the compressed file. If the file is archived along with a compression algo, e.g. a `tar.gz` or a `tgz` we have to use the config `compressionAlgo` to decompress the archive file.
 For example:
 
-.Loading a compressed JSON file
+.Loading an archived JSON file
 ----
-apoc.load.json("https://github.com/neo4j/apoc/tree/3.4/src/test/resources/testload.tgz?raw=true!person.json");
+apoc.load.json("https://github.com/neo4j/apoc/tree/3.4/src/test/resources/testload.zip?raw=true!person.json");
+----
+
+.Loading an archived and compressed JSON file
+----
+apoc.load.json("path/to/file/myFile.tar.gz!person.json");
 ----
 
 include::partial$s3-protocol.adoc[]
