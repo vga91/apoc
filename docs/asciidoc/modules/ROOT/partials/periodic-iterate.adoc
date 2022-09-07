@@ -42,7 +42,7 @@ WITH _batch.field1 AS field1, _batch.field2 AS field2
 The operation query can access the batched values via the `$_batch` parameter.
 
 | params | Map | {} | externally pass in map of params
-| concurrency | Long | 50 | number of concurrent tasks are generated when using `parallel:true`
+| concurrency | Long | 6 | number of concurrent tasks are generated when using `parallel:true`
 | failedParams | Long |  -1 | if set to a non-negative value, each failed batch up to `failedParams` parameter sets are returned in `yield failedParams`.
 |===
 
