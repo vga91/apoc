@@ -64,21 +64,26 @@ public class Neo4jContainerExtension extends Neo4jContainer<Neo4jContainerExtens
     public void start() {
         try {
             super.start();
+            System.out.println("Neo4jContainerExtension.isStarted");
             if (withDriver) {
                 driver = GraphDatabase.driver(getBoltUrl(), getAuth());
                 session = driver.session();
+                System.out.println("driver and session initialized");
                 if (filePath != null && !filePath.isEmpty()) {
+                    System.out.println("executing init script");
                     executeScript(filePath);
                 }
             }
             isRunning = true;
+            System.out.println("isRunning");
         } catch (Exception startException) {
             try {
                 System.out.println(this.execInContainer("cat", "logs/debug.log").toString());
                 System.out.println(this.execInContainer("cat", "logs/http.log").toString());
                 System.out.println(this.execInContainer("cat", "logs/security.log").toString());
             } catch (Exception ex) {
-                throw new RuntimeException(ex);
+                // we addSuppressed the exception produced by execInContainer, but we finally throw the original `startException`
+                startException.addSuppressed(new RuntimeException("Exception during fallback execInContainer", ex));
             }
             throw startException;
         }
