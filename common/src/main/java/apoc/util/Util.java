@@ -114,6 +114,8 @@ public class Util {
     public static final String REL_COUNT = "MATCH ()-->() RETURN count(*) as result";
     public static final String COMPILED = "interpreted"; // todo handle enterprise properly
     public static final String ERROR_BYTES_OR_STRING = "Only byte[] or url String allowed";
+    public static final String APOC_HTTP_TIMEOUT_CONNECT = "apoc.http.timeout.connect";
+    public static final String APOC_HTTP_TIMEOUT_READ = "apoc.http.timeout.read";
 
     public static String labelString(List<String> labelNames) {
         return labelNames.stream().map(Util::quote).collect(Collectors.joining(":"));
@@ -342,8 +344,8 @@ public class Util {
             headers.forEach((k,v) -> con.setRequestProperty(k, v == null ? "" : v.toString()));
         }
 //        con.setDoInput(true);
-        con.setConnectTimeout(apocConfig().getInt("apoc.http.timeout.connect",10_000));
-        con.setReadTimeout(apocConfig().getInt("apoc.http.timeout.read",60_000));
+        con.setConnectTimeout(apocConfig().getInt(APOC_HTTP_TIMEOUT_CONNECT,10_000));
+        con.setReadTimeout(apocConfig().getInt(APOC_HTTP_TIMEOUT_READ,60_000));
         return con;
     }
 

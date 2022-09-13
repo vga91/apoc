@@ -31,6 +31,8 @@ import static apoc.ApocConfig.apocConfig;
 import static apoc.util.BinaryTestUtil.fileToBinary;
 import static apoc.util.CompressionConfig.COMPRESSION;
 import static apoc.util.TestUtil.*;
+import static apoc.util.Util.APOC_HTTP_TIMEOUT_CONNECT;
+import static apoc.util.Util.APOC_HTTP_TIMEOUT_READ;
 import static java.util.Arrays.asList;
 import static org.junit.Assert.*;
 import static org.neo4j.internal.helpers.collection.MapUtil.map;
@@ -48,6 +50,8 @@ public class XmlTest {
     public void setUp() throws Exception {
         apocConfig().setProperty(APOC_IMPORT_FILE_ENABLED, true);
         apocConfig().setProperty(APOC_IMPORT_FILE_USE_NEO4J_CONFIG, false);
+        apocConfig().setProperty(APOC_HTTP_TIMEOUT_CONNECT, 20_000);
+        apocConfig().setProperty(APOC_HTTP_TIMEOUT_READ, 120_000);
         TestUtil.registerProcedure(db, Xml.class);
     }
 
