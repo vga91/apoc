@@ -38,12 +38,12 @@ public enum CompressionAlgo {
         this.decompressor = decompressor;
     }
 
-    public static CompressionAlgo from(String algo) {
-        if (algo == null) {
-            return NONE;
-        }
-        return CompressionAlgo.valueOf(algo);
-    }
+//    public static CompressionAlgo from(String algo) {
+//        if (algo == null) {
+//            return NONE;
+//        }
+//        return CompressionAlgo.valueOf(algo);
+//    }
 
     public byte[] compress(String string, Charset charset) throws Exception {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {

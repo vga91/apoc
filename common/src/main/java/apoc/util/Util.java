@@ -8,11 +8,7 @@ import apoc.export.util.ExportConfig;
 import apoc.result.VirtualNode;
 import apoc.result.VirtualRelationship;
 import org.apache.commons.compress.archivers.ArchiveEntry;
-import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
-import org.apache.commons.compress.archivers.ArchiveStreamFactory;
-import org.apache.commons.compress.archivers.Lister;
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.collections.api.iterator.LongIterator;
@@ -21,7 +17,6 @@ import org.neo4j.values.storable.CoordinateReferenceSystem;
 import org.neo4j.values.storable.PointValue;
 import org.neo4j.values.storable.Values;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -75,8 +70,6 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 import javax.lang.model.SourceVersion;
 
 import org.neo4j.configuration.Config;
@@ -384,8 +377,9 @@ public class Util {
     public static CountingInputStream openInputStream(Object input, Map<String, Object> headers, String payload, String compressionAlgo) throws IOException {
         if (input instanceof String) {
             String urlAddress = (String) input;
-            if (urlAddress.contains("!") && (urlAddress.contains(".zip") || urlAddress.contains(".tar") || urlAddress.contains(".tgz"))) {
-                return getStreamCompressedFile(urlAddress, headers, payload, compressionAlgo);
+            final ArchiveType archiveType = ArchiveType.from(urlAddress);
+            if (archiveType.isArchive()) {
+                return getStreamCompressedFile(urlAddress, headers, payload, archiveType);
             }
 
             StreamConnection sc = getStreamConnection(urlAddress, headers, payload);
@@ -397,7 +391,7 @@ public class Util {
         }
     }
 
-    private static CountingInputStream getStreamCompressedFile(String urlAddress, Map<String, Object> headers, String payload, String compressionAlgo) throws IOException {
+    private static CountingInputStream getStreamCompressedFile(String urlAddress, Map<String, Object> headers, String payload, ArchiveType archiveType) throws IOException {
         StreamConnection sc;
         InputStream stream;
         String[] tokens = urlAddress.split("!");
@@ -406,7 +400,7 @@ public class Util {
         if(tokens.length == 2) {
             zipFileName = tokens[1];
             sc = getStreamConnection(urlAddress, headers, payload);
-            stream = getFileStreamIntoCompressedFile(sc.getInputStream(), zipFileName, compressionAlgo);
+            stream = getFileStreamIntoCompressedFile(sc.getInputStream(), zipFileName, archiveType);
         }else
             throw new IllegalArgumentException("filename can't be null or empty");
 
@@ -419,8 +413,8 @@ public class Util {
                 .getStreamConnection(urlAddress, headers, payload);
     }
 
-    private static InputStream getFileStreamIntoCompressedFile(InputStream is, String fileName, String compressionAlgo) throws IOException {
-        try (ArchiveInputStream archive = createArchiveInputStream(is, compressionAlgo)) {
+    private static InputStream getFileStreamIntoCompressedFile(InputStream is, String fileName, ArchiveType archiveType) throws IOException {
+        try (ArchiveInputStream archive = archiveType.getInputStream(is)) {
             ArchiveEntry archiveEntry;
 
             while ((archiveEntry = archive.getNextEntry()) != null) {
@@ -431,17 +425,6 @@ public class Util {
         }
 
         return null;
-    }
-
-    private static ArchiveInputStream createArchiveInputStream(InputStream is, String algo) {
-        try {
-            InputStream compressStream = CompressionAlgo.from(algo).getInputStream(is);
-            // BufferedInputStream in order to make the InputStream mark supported (condition needed by createArchiveInputStream)
-            return new ArchiveStreamFactory()
-                    .createArchiveInputStream(new BufferedInputStream(compressStream));
-        } catch (Exception e) {
-            throw  new RuntimeException(e);
-        }
     }
 
     public static StreamConnection readHttpInputStream(String urlAddress, Map<String, Object> headers, String payload) throws IOException {

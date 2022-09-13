@@ -29,7 +29,7 @@ public interface StreamConnection {
             return new CountingInputStream(new DeflaterInputStream(getInputStream()), getLength());
         }
         try {
-            final InputStream inputStream = CompressionAlgo.from(algo)
+            final InputStream inputStream = CompressionAlgo.valueOf(algo == null ? CompressionAlgo.NONE.name() : algo)
                     .getInputStream(getInputStream());
             return new CountingInputStream(inputStream, getLength());
         } catch (Exception e) {
