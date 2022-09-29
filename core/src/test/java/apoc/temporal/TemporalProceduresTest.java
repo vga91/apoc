@@ -11,8 +11,6 @@ import org.neo4j.test.rule.ImpermanentDbmsRule;
 
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class TemporalProceduresTest
 {
@@ -69,16 +67,23 @@ public class TemporalProceduresTest
     
     @Test
     public void shouldFormatDurationGreaterThanADay() {
-        String output = TestUtil.singleResultFirstColumn(db, "WITH duration.between(datetime(\"2017-06-02T18:40:32\"), datetime(\"2019-07-03T19:41:33\")) AS duration\n" +
-                "RETURN apoc.temporal.formatDuration(duration, \"yy 'years' MM 'months' dd 'days' - HH:mm:ss\") AS value");
-        assertEquals("02 years 01 months 01 days - 01:01:01", output);
+        String output = TestUtil.singleResultFirstColumn(db, "WITH duration.between(datetime(\"2017-06-02T18:40:32\"), datetime(\"2019-11-11T19:41:33\")) AS duration\n" +
+                "RETURN apoc.temporal.formatDuration(duration, \"yy 'years' MM 'months' qq 'quarters' w 'weeks' dd 'days' - HH:mm:ss - SSS\") AS value");
+        assertEquals("02 years 05 months 01 quarters 1 weeks 09 days - 01:01:01 - 000", output);
     }
     
     @Test
     public void shouldFormatDurationGreaterThanADayWithIsoFormat() {
         String output = TestUtil.singleResultFirstColumn(db, "WITH duration.between( datetime(\"2017-06-02T18:40:32\"), datetime(\"2019-07-03T19:41:33\") ) AS duration\n" +
-                "RETURN apoc.temporal.formatDuration(duration, \"yy 'years' MM 'months' dd 'days' - HH:mm:ss\") AS value");
-        assertEquals("02 years 01 months 01 days - 01:01:01", output);
+                "RETURN apoc.temporal.formatDuration(duration, 'iso_local_date_time') AS value");
+        assertEquals("0002-01-01T01:01:01", output);
+    }
+    
+    @Test
+    public void shouldFormatDurationGreaterThanADayWithIsoTimeFormat() {
+        String output = TestUtil.singleResultFirstColumn(db, "WITH duration.between( datetime(\"2017-06-02T18:40:32\"), datetime(\"2019-07-03T19:41:33\") ) AS duration\n" +
+                "RETURN apoc.temporal.formatDuration(duration, 'iso_time') AS value");
+        assertEquals("01:01:01", output);
     }
 
     @Test
@@ -92,7 +97,7 @@ public class TemporalProceduresTest
     public void shouldFormatDurationTemporalISO() throws Throwable
     {
         String output = TestUtil.singleResultFirstColumn(db, "RETURN apoc.temporal.formatDuration( duration('P0M0DT4820.487660000S'), \"ISO_DATE_TIME\" ) as output");
-        assertEquals("0000-01-01T01:20:20.48766", output);
+        assertEquals("0000-00-00T01:20:20.48766", output);
     }
 
     @Test
