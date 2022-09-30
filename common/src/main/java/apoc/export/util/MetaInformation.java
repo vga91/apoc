@@ -12,11 +12,13 @@ import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.ResultTransformer;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static apoc.gephi.GephiFormatUtils.getCaption;
@@ -89,6 +91,28 @@ public class MetaInformation {
             if (storedClass == void.class || storedClass.equals(value.getClass())) continue;
             keyTypes.put(prop, void.class);
         }
+    }
+
+    public static void updateKeyTypesForGraphMl(Map<String, Map<Class, String>> keyTypes, Entity pc, boolean useTypes) {
+        for (String prop : pc.getPropertyKeys()) {
+            Object value = pc.getProperty(prop);
+
+            final Map<Class, String> propSubMap = keyTypes.get(prop);
+            final Class clazz = value.getClass();
+            if (propSubMap == null) {
+                initPropKey(keyTypes, prop, clazz);
+                continue;
+            }
+            propSubMap.putIfAbsent(clazz, getPropSuffix(useTypes));
+        }
+    }
+
+    public static void initPropKey(Map<String, Map<Class, String>> keyTypes, String prop, Class<?> value) {
+        keyTypes.put(prop, new HashMap<>(Map.of(value, "")));
+    }
+
+    public static String getPropSuffix(boolean useTypes) {
+        return useTypes ? "_" + UUID.randomUUID() : "";
     }
 
     public final static Set<String> GRAPHML_ALLOWED = new HashSet<>(asList("boolean", "int", "long", "float", "double", "string"));
