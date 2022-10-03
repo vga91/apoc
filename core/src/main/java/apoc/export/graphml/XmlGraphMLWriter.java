@@ -7,6 +7,7 @@ import org.neo4j.graphdb.Entity;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.NotFoundException;
 import org.neo4j.graphdb.Relationship;
+import org.neo4j.graphdb.Transaction;
 
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
@@ -24,6 +25,12 @@ import static apoc.export.util.MetaInformation.*;
  */
 public class XmlGraphMLWriter {
     private final Map<String, Map<Class, String>> totalKeyTypes = new HashMap<>();
+    private final Transaction tx;
+
+    public XmlGraphMLWriter(Transaction tx) {
+        this.tx = tx;
+    }
+    
     public void write(SubGraph graph, Writer writer, Reporter reporter, ExportConfig config) throws Exception {
         XMLOutputFactory xmlOutputFactory = XMLOutputFactory.newInstance();
         XMLStreamWriter xmlWriter = xmlOutputFactory.createXMLStreamWriter(writer);
