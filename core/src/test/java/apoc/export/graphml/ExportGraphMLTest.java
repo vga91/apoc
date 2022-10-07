@@ -8,6 +8,7 @@ import apoc.meta.Meta;
 import apoc.util.TestUtil;
 import apoc.util.Util;
 import apoc.util.collection.Iterables;
+import apoc.util.collection.Iterators;
 import junit.framework.TestCase;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -46,6 +47,7 @@ import static apoc.ApocConfig.APOC_IMPORT_FILE_ENABLED;
 import static apoc.ApocConfig.APOC_IMPORT_FILE_USE_NEO4J_CONFIG;
 import static apoc.ApocConfig.EXPORT_TO_FILE_ERROR;
 import static apoc.ApocConfig.apocConfig;
+import static apoc.meta.tablesforlabels.PropertyTracker.typeMappings;
 import static apoc.util.BinaryTestUtil.getDecompressedData;
 import static apoc.util.BinaryTestUtil.fileToBinary;
 import static apoc.util.MapUtil.map;
@@ -689,7 +691,7 @@ public class ExportGraphMLTest {
                         final String controlAttrValue = e.getValue();
                         if ((!ATTRIBUTES_CONTAINING_NODE_IDS.contains(e.getKey().getLocalPart()))
                             && (!controlAttrValue.equals(testAttrValue)
-                                // match test attributes that starts with actual attrs and with length equal to control attribute + 37 ["_" + UUID length] 
+                                // match test attributes that starts with actual attrs and with length equal to control attribute + "__" + metaType 
                                 && !compareAttrValues(testAttrValue, controlAttrValue) 
                         )) {
                             return false;
@@ -703,7 +705,7 @@ public class ExportGraphMLTest {
                     if (outcome == ComparisonResult.EQUAL || outcome == ComparisonResult.SIMILAR) {
                         return outcome;
                     }
-                    // otherwise, we check that actual attribute contains expected attr and actual attr length is equal to expected + 37 ["_" + UUID length]
+                    // otherwise, we check that actual attribute contains expected attr and actual attr length is equal to expected + "__" + metaType
                     final String expectedNode = comparison.getControlDetails().getValue().toString();
                     final String actualNode = comparison.getTestDetails().getValue().toString();
                     if (compareAttrValues(actualNode, expectedNode)) {
@@ -717,7 +719,9 @@ public class ExportGraphMLTest {
     }
 
     private boolean compareAttrValues(String testAttribute, String controlAttribute) {
-        return testAttribute.startsWith(controlAttribute) && controlAttribute.length() + 37 == testAttribute.length();
+        return typeMappings.values()
+                .stream()
+                .anyMatch(type -> testAttribute.equals(controlAttribute + XmlGraphMLWriter.addSuffix(type)));
     }
 
     @Test
@@ -734,25 +738,13 @@ public class ExportGraphMLTest {
     @Test
     public void testRoundtripWithMixedTypes() {
         // given
-        db.executeTransactionally("CREATE (:MultiType {alpha: 'fooBar', otherProp: 1})-[:MY_REL {beta: 'baz', otherPropRel: 1}]->(:Another), " +
-                "(:MultiType {alpha: 11, otherProp: 2})-[:MY_REL {beta: 123, otherPropRel: 2}]->(:Another), " +
-                "(:MultiType {alpha: [11, 22], otherProp: 3})-[:MY_REL {beta: [123, 456], otherPropRel: 3}]->(:Another), " +
-                "(:MultiType {alpha: ['al', 'john', 'jack'], otherProp: 4})-[:MY_REL {beta: ['one', 'two'], otherPropRel: 4}]->(:Another), " +
-                "(:MultiTypeTwo {otherProp: 5})-[:MY_REL {beta: false, otherPropRel: 5}]->(:AnotherOne), " +
-                "(:MultiTypeTwo {alpha:  date('2020'), otherProp: 6})-[:MY_REL {beta: null, otherPropRel: 6}]->(:AnotherOne)");
-
-        db.executeTransactionally("MATCH (n:MultiTypeTwo {otherProp: 5}) RETURN n", Map.of(), r -> {
-            final Node n = Iterators.single(r.columnAs("n"));
-            // force property to be an Integer
-            n.setProperty("alpha", 1);
-            return null;
-        });
+        createDatasetMixedType();
 
         // when
         File output = new File(directory, "graphMultiType.graphml");
         TestUtil.testCall(db, "CALL apoc.export.graphml.all($file,$config)",
                 map("file", output.getAbsolutePath(),
-                        "config", map("useTypes", true, "readLabels", true)),
+                        "config", map("useTypes", true, "readLabels", true, "sampling", true)),
                 this::assertMultiTypeCommon);
         assertXMLEquals(output, EXPECTED_MIXED_TYPES);
 
@@ -799,6 +791,63 @@ public class ExportGraphMLTest {
         });
 
         db.executeTransactionally("MATCH (n:MultiType), (m:Another), (l:MultiTypeTwo) DETACH DELETE n, m, l");
+    }
+
+    @Test
+    public void testRoundtripWithMixedTypesAndSamplingConfig() {
+        // given
+        createDatasetMixedType();
+
+        // when
+        File output = new File(directory, "graphMultiType11.graphml");
+        TestUtil.testCall(db, "CALL apoc.export.graphml.all($file,$config)",
+                map("file", output.getAbsolutePath(),
+                        "config", map("useTypes", true, "readLabels", true, "sampling", true, "samplingConfig", map("sample", 1L))),
+                this::assertMultiTypeCommon);
+
+        final String deleteRoundripNodes = "MATCH (n:MultiType), (m:Another), (l:MultiTypeTwo) DETACH DELETE n, m, l";
+        db.executeTransactionally(deleteRoundripNodes);
+
+        TestUtil.testCall(db, "CALL apoc.import.graphml($file, $config)",
+                map("file", output.getAbsolutePath(), "config", map("readLabels", true)),
+                this::assertMultiTypeCommon);
+
+        TestUtil.testResult(db, "MATCH (n:MultiType) RETURN n.alpha as alpha", (r) -> {
+            final List<Object> props = Iterators.asList(r.columnAs("alpha"));
+            assertEquals(4, props.size());
+            assertMoreThanOneString(props);
+        });
+
+        TestUtil.testCallCount(db, "MATCH (n:MultiTypeTwo) RETURN n.alpha as alpha", 2);
+
+        TestUtil.testResult(db, "MATCH ()-[r:MY_REL]->() RETURN r.beta as beta", (r) -> {
+            final List<Object> props = Iterators.asList(r.columnAs("beta"));
+            assertEquals(6, props.size());
+            assertMoreThanOneString(props);
+        });
+
+        db.executeTransactionally(deleteRoundripNodes);
+    }
+
+    private static void assertMoreThanOneString(List<Object> props) {
+        // more than 1 element is coerced in String with sample 1
+        assertTrue(props.stream().filter(prop -> prop instanceof String).count() > 1);
+    }
+
+    private void createDatasetMixedType() {
+        db.executeTransactionally("CREATE (:MultiType {alpha: 'fooBar', otherProp: 1})-[:MY_REL {beta: 'baz', otherPropRel: 1}]->(:Another), " +
+                "(:MultiType {alpha: 11, otherProp: 2})-[:MY_REL {beta: 123, otherPropRel: 2}]->(:Another), " +
+                "(:MultiType {alpha: [11, 22], otherProp: 3})-[:MY_REL {beta: [123, 456], otherPropRel: 3}]->(:Another), " +
+                "(:MultiType {alpha: ['al', 'john', 'jack'], otherProp: 4})-[:MY_REL {beta: ['one', 'two'], otherPropRel: 4}]->(:Another), " +
+                "(:MultiTypeTwo {otherProp: 5})-[:MY_REL {beta: false, otherPropRel: 5}]->(:AnotherOne), " +
+                "(:MultiTypeTwo {alpha:  date('2020'), otherProp: 6})-[:MY_REL {beta: null, otherPropRel: 6}]->(:AnotherOne)");
+
+        db.executeTransactionally("MATCH (n:MultiTypeTwo {otherProp: 5}) RETURN n", Map.of(), r -> {
+            final Node n = Iterators.single(r.columnAs("n"));
+            // force property to be an Integer
+            n.setProperty("alpha", 1);
+            return null;
+        });
     }
 
     private void assertMultiTypeCommon(Map<String, Object> r) {

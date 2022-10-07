@@ -120,7 +120,7 @@ public class ExportGraphML {
         apocConfig.checkWriteAllowed(exportConfig, fileName);
         final String format = "graphml";
         ProgressReporter reporter = new ProgressReporter(null, null, new ProgressInfo(fileName, source, format));
-        XmlGraphMLWriter exporter = new XmlGraphMLWriter();
+        XmlGraphMLWriter exporter = new XmlGraphMLWriter(tx);
         ExportFileManager cypherFileManager = FileManagerFactory.createFileManager(fileName, false, exportConfig);
         final PrintWriter graphMl = cypherFileManager.getPrintWriter(format);
         if (exportConfig.streamStatements()) {

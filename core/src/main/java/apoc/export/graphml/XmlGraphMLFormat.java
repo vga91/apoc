@@ -30,7 +30,7 @@ public class XmlGraphMLFormat implements Format {
     @Override
     public ProgressInfo dump(SubGraph graph, ExportFileManager writer, Reporter reporter, ExportConfig config) throws Exception {
         try (Transaction tx = db.beginTx()) {
-            XmlGraphMLWriter graphMlWriter = new XmlGraphMLWriter();
+            XmlGraphMLWriter graphMlWriter = new XmlGraphMLWriter(tx);
             graphMlWriter.write(graph, writer.getPrintWriter("graphml"), reporter, config);
             tx.commit();
         }

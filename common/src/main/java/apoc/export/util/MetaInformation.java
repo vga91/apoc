@@ -12,13 +12,11 @@ import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.ResultTransformer;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static apoc.gephi.GephiFormatUtils.getCaption;
@@ -32,7 +30,7 @@ import static java.util.Arrays.asList;
  */
 public class MetaInformation {
     
-    private static final Map<String, String> REVERSED_TYPE_MAP = MapUtils.invertMap(typeMappings);
+    public static final Map<String, String> REVERSED_TYPE_MAP = MapUtils.invertMap(typeMappings);
     
     public static Map<String, Class> collectPropTypesForNodes(SubGraph graph, GraphDatabaseService db, ExportConfig config) {
         if (!config.isSampling()) {
@@ -42,13 +40,18 @@ public class MetaInformation {
             }
             return propTypes;
         }
-        final Map<String, Object> conf = config.getSamplingConfig();
-        conf.putIfAbsent("includeLabels", stream(graph.getAllLabelsInUse()).map(Label::name).collect(Collectors.toList()));
-        
-        return db.executeTransactionally("CALL apoc.meta.nodeTypeProperties($conf)", 
-                Map.of("conf", conf), getMapResultTransformer()); 
+
+        return db.executeTransactionally("CALL apoc.meta.nodeTypeProperties($conf)",
+                Map.of("conf", getConfWithIncludeLabels(graph, config)), 
+                getMapResultTransformer());
     }
 
+    public static Map<String, Object> getConfWithIncludeLabels(SubGraph graph, ExportConfig config) {
+        final Map<String, Object> conf = config.getSamplingConfig();
+        conf.putIfAbsent("includeLabels", stream(graph.getAllLabelsInUse()).map(Label::name).collect(Collectors.toList()));
+        return conf;
+    }
+    
     public static Map<String, Class> collectPropTypesForRelationships(SubGraph graph, GraphDatabaseService db, ExportConfig config) {
         if (!config.isSampling()) {
             Map<String,Class> propTypes = new LinkedHashMap<>();
@@ -57,11 +60,16 @@ public class MetaInformation {
             }
             return propTypes;
         }
+
+        return db.executeTransactionally("CALL apoc.meta.relTypeProperties($conf)",
+                Map.of("conf", getConfWithIncludeRels(graph, config)), 
+                getMapResultTransformer());
+    }
+
+    public static Map<String, Object> getConfWithIncludeRels(SubGraph graph, ExportConfig config) {
         final Map<String, Object> conf = config.getSamplingConfig();
         conf.putIfAbsent("includeRels", stream(graph.getAllRelationshipTypesInUse()).map(RelationshipType::name).collect(Collectors.toList()));
-
-        return db.executeTransactionally("CALL apoc.meta.relTypeProperties($conf)", 
-                Map.of("conf", conf), getMapResultTransformer());
+        return conf;
     }
 
     private static ResultTransformer<Map<String, Class>> getMapResultTransformer() {
@@ -70,13 +78,7 @@ public class MetaInformation {
                 .collect(Collectors.toMap(map -> (String) map.get("propertyName"),
                         map -> {
                             final String propertyTypes = ((List<String>) map.get("propertyTypes")).get(0);
-                            // take the className from the result, inversely to the meta.relTypeProperties/nodeTypeProperties procedures
-                            String className = REVERSED_TYPE_MAP.get(propertyTypes);
-                            try {
-                                return ClassUtils.getClass(className);
-                            } catch (ClassNotFoundException e) {
-                                throw new RuntimeException(e);
-                            }
+                            return getClassFromMetaType(propertyTypes);
                         }, (e1, e2) -> e2));
     }
 
@@ -84,8 +86,8 @@ public class MetaInformation {
         for (String prop : pc.getPropertyKeys()) {
             Object value = pc.getProperty(prop);
             Class storedClass = keyTypes.get(prop);
-            if (storedClass==null) {
-                keyTypes.put(prop,value.getClass());
+            if (storedClass == null) {
+                keyTypes.put(prop, value.getClass());
                 continue;
             }
             if (storedClass == void.class || storedClass.equals(value.getClass())) continue;
@@ -93,30 +95,27 @@ public class MetaInformation {
         }
     }
 
-    public static void updateKeyTypesForGraphMl(Map<String, Map<Class, String>> keyTypes, Entity pc, boolean useTypes) {
+    public static void updateKeyTypesGraphMl(Map<String, Map<String, Class>> keyTypes, Entity pc) {
         for (String prop : pc.getPropertyKeys()) {
             Object value = pc.getProperty(prop);
-
-            final Map<Class, String> propSubMap = keyTypes.get(prop);
-            final Class clazz = value.getClass();
-            if (propSubMap == null) {
-                initPropKey(keyTypes, prop, clazz);
-                continue;
+            Map<String, Class> storedClasses = keyTypes.get(prop);
+            if (storedClasses==null || storedClasses.isEmpty()) {
+                initPropKey(keyTypes, prop, value.getClass());
+            } else {
+                Class storedClass = storedClasses.values().iterator().next();
+                if (storedClass == void.class || storedClass.equals(value.getClass())) continue;
+                initPropKey(keyTypes, prop, void.class);
             }
-            propSubMap.putIfAbsent(clazz, getPropSuffix(useTypes));
         }
     }
 
-    public static void initPropKey(Map<String, Map<Class, String>> keyTypes, String prop, Class<?> value) {
-        keyTypes.put(prop, new HashMap<>(Map.of(value, "")));
-    }
-
-    public static String getPropSuffix(boolean useTypes) {
-        return useTypes ? "_" + UUID.randomUUID() : "";
+    public static void initPropKey(Map<String, Map<String, Class>> keyTypes, String prop, Class<?> value) {
+        // currently, without sampling config we don't differentiate multiple types in case of equivalent property names   
+        keyTypes.put(prop, Map.of("",  value));
     }
 
     public final static Set<String> GRAPHML_ALLOWED = new HashSet<>(asList("boolean", "int", "long", "float", "double", "string"));
-    
+
     public static String typeFor(Class value, Set<String> allowed) {
         if (value == void.class) return null; // Is this necessary?
         Types type = Types.of(value);
@@ -140,5 +139,15 @@ public class MetaInformation {
 
     public static String getLabelsStringGephi(ExportConfig config, Node node) {
         return getCaption(node, config.getCaption());
+    }
+    
+    public static Class getClassFromMetaType(String propertyTypes) {
+        // take the className from the result, inversely to the meta.relTypeProperties/nodeTypeProperties procedures
+        String className = REVERSED_TYPE_MAP.get(propertyTypes);
+        try {
+            return ClassUtils.getClass(className);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

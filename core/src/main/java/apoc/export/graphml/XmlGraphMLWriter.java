@@ -1,12 +1,14 @@
 package apoc.export.graphml;
 
 import apoc.export.util.*;
+import org.apache.commons.lang3.ClassUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.neo4j.cypher.export.SubGraph;
 import org.neo4j.graphdb.Entity;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.NotFoundException;
 import org.neo4j.graphdb.Relationship;
+import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
 
 import javax.xml.stream.XMLOutputFactory;
@@ -15,16 +17,19 @@ import javax.xml.stream.XMLStreamWriter;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static apoc.export.util.MetaInformation.*;
+import static apoc.meta.tablesforlabels.PropertyTracker.typeMappings;
 
 /**
  * @author mh
  * @since 21.01.14
  */
 public class XmlGraphMLWriter {
-    private final Map<String, Map<Class, String>> totalKeyTypes = new HashMap<>();
+    private final Map<String, Map<String, Class>> totalKeyTypes = new HashMap<>();
     private final Transaction tx;
 
     public XmlGraphMLWriter(Transaction tx) {
@@ -48,21 +53,39 @@ public class XmlGraphMLWriter {
         writeFooter(xmlWriter);
         reporter.done();
     }
+    
+    public static String addSuffix(String propMap) {
+        if (propMap == null || propMap.isEmpty()) {
+            return propMap;
+        }
+        return "__" + propMap;
+    }
 
     private void writeKey(XMLStreamWriter writer, SubGraph ops, ExportConfig config) throws Exception {
-        // we'll create a Map<propName, <className, optionalUUID>>
-        Map<String, Map<Class, String>> keyTypes = new HashMap<>();
+        // we'll create a Map<propName, <suffixes, classes>>
+        Map<String, Map<String, Class>> keyTypes = new HashMap<>();
         boolean useTypes = config.useTypes();
-        for (Node node : ops.getNodes()) {
-            if (node.getLabels().iterator().hasNext()) {
-                if (config.getFormat() == ExportFormat.TINKERPOP) {
-                    initPropKey(keyTypes, "labelV", String.class);
-                } else {
-                    initPropKey(keyTypes, "labels", String.class);
-                }
+
+        if (ops.getAllLabelsInUse().iterator().hasNext()) {
+            if (config.getFormat() == ExportFormat.TINKERPOP) {
+                initPropKey(keyTypes, "labelV", String.class);
+            } else {
+                initPropKey(keyTypes, "labels", String.class);
             }
-            updateKeyTypesForGraphMl(keyTypes, node, useTypes);
         }
+        
+        if (config.isSampling()) {
+            final Result result = tx.execute("CALL apoc.meta.nodeTypeProperties($conf)",
+                    Map.of("conf", getConfWithIncludeLabels(ops, config)));
+
+            final Map<String, Map<String, Class>> mapResultTransformer = getMapResultTransformer(result);
+            keyTypes.putAll(mapResultTransformer);
+        } else {
+            for (Node node : ops.getNodes()) {
+                updateKeyTypesGraphMl(keyTypes, node);
+            }
+        }
+        
         ExportFormat format = config.getFormat();
         if (format == ExportFormat.GEPHI) {
             initPropKey(keyTypes, "TYPE", String.class);
@@ -71,13 +94,21 @@ public class XmlGraphMLWriter {
         // adding nodes keyTypes
         totalKeyTypes.putAll(keyTypes);
         keyTypes.clear();
-        for (Relationship rel : ops.getRelationships()) {
+        if (ops.getAllRelationshipTypesInUse().iterator().hasNext()) {
             if (config.getFormat() == ExportFormat.TINKERPOP) {
                 initPropKey(keyTypes, "labelE", String.class);
             } else {
                 initPropKey(keyTypes, "label", String.class);
             }
-            updateKeyTypesForGraphMl(keyTypes, rel, useTypes);
+        }
+        if (config.isSampling()) {
+            final Result result = tx.execute("CALL apoc.meta.relTypeProperties($conf)",
+                    Map.of("conf", getConfWithIncludeRels(ops, config)));
+            keyTypes.putAll(getMapResultTransformer(result));
+        } else {
+            for (Relationship rel : ops.getRelationships()) {
+                updateKeyTypesGraphMl(keyTypes, rel);
+            }
         }
         if (format == ExportFormat.GEPHI) {
             initPropKey(keyTypes, "TYPE", String.class);
@@ -87,15 +118,34 @@ public class XmlGraphMLWriter {
         totalKeyTypes.putAll(keyTypes);
     }
 
-    private void writeKey(XMLStreamWriter writer, Map<String, Map<Class, String>> keyTypes, String forType, boolean useTypes) throws XMLStreamException {
-        for (Map.Entry<String, Map<Class, String>> entry : keyTypes.entrySet()) {
-            for (Map.Entry<Class, String> subEntry :entry.getValue().entrySet()) {
-                final Class typeClass = subEntry.getKey();
+    private Map<String, Map<String, Class>> getMapResultTransformer(Result result) {
+        return result.stream()
+                .filter(map -> map.get("propertyName") != null)
+                .collect(Collectors.toMap(map -> (String) map.get("propertyName"),
+                        map -> ((List<String>) map.get("propertyTypes"))
+                                .stream()
+                                .collect(Collectors.toMap(type -> type,
+                                        MetaInformation::getClassFromMetaType)), 
+                        (e1, e2) -> {
+                            e1.putAll(e2);
+                            return e1;
+                        }
+                ));
+    }
+
+
+
+
+    private void writeKey(XMLStreamWriter writer, Map<String, Map<String, Class>> keyTypes, String forType, boolean useTypes) throws XMLStreamException {
+        for (Map.Entry<String, Map<String, Class>> entry : keyTypes.entrySet()) {
+            final Map<String, Class> entryValue = entry.getValue();
+            for (Map.Entry<String, Class> subEntry : entryValue.entrySet()) {
+                final Class typeClass = subEntry.getValue();
                 String type = MetaInformation.typeFor(typeClass, MetaInformation.GRAPHML_ALLOWED);
                 if (type == null) continue;
                 writer.writeEmptyElement("key");
                 // append uuid suffix if necessary
-                writer.writeAttribute("id", entry.getKey() + subEntry.getValue());
+                writer.writeAttribute("id", entry.getKey() + addSuffix(subEntry.getKey()));
                 writer.writeAttribute("for", forType);
                 writer.writeAttribute("attr.name", entry.getKey());
                 if (useTypes) {
@@ -118,7 +168,7 @@ public class XmlGraphMLWriter {
             writeLabels(writer, node);
         }
         writeLabelsAsData(writer, node, config);
-        int props = writeProps(writer, node);
+        int props = writeProps(writer, node, config);
         endElement(writer);
         return props;
     }
@@ -160,7 +210,7 @@ public class XmlGraphMLWriter {
         if (config.getFormat() == ExportFormat.GEPHI) {
             writeData(writer, "TYPE", rel.getType().name());
         }
-        int props = writeProps(writer, rel);
+        int props = writeProps(writer, rel, config);
         endElement(writer);
         return props;
     }
@@ -197,14 +247,25 @@ public class XmlGraphMLWriter {
         newLine(writer);
     }
 
-    private int writeProps(XMLStreamWriter writer, Entity node) throws XMLStreamException {
+    private int writeProps(XMLStreamWriter writer, Entity node, ExportConfig config) throws XMLStreamException {
         int count = 0;
         for (String prop : node.getPropertyKeys()) {
             Object value = node.getProperty(prop);
-            // join prop name with uuid suffix if present
-            String suffix = totalKeyTypes.getOrDefault(prop, Collections.emptyMap())
-                    .getOrDefault(value.getClass(), "");
-            prop += suffix;
+            if (config.useTypes()) {
+                if (config.isSampling()) {
+                    // when we use sampling, if we found a metaType from totalKeyTypes
+                    // e.g. "IntArray", we add the suffix, that is: <data key="nameProp__TYPE".... >
+                    // if a meta is not found via apoc.meta.*, we don't add suffix, that is, we coerce value to string
+                    final Map<String, Class> propKeyTypes = totalKeyTypes.getOrDefault(prop, Collections.emptyMap());
+                    final String metaType = typeMappings.get(ClassUtils.getCanonicalName(value.getClass()));
+                    boolean isMultiTypeProp = propKeyTypes.size() > 1 && propKeyTypes.containsKey(metaType);
+                    if (isMultiTypeProp) {
+                        String suffix = addSuffix(metaType);
+                        prop += suffix;
+                    }
+                }
+            }
+
             writeData(writer, prop, value);
             count++;
         }
