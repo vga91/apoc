@@ -798,10 +798,17 @@ public class Util {
      *
      */
     public static boolean transactionIsTerminated(TerminationGuard db) {
+        return transactionIsTerminated(db, false);
+    }
+    
+    public static boolean transactionIsTerminated(TerminationGuard db, boolean withException) {
         try {
             db.check();
             return false;
         } catch (TransactionTerminatedException | NotInTransactionException tge) {
+            if (withException) {
+                throw new RuntimeException(tge);
+            }
             return true;
         }
     }

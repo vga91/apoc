@@ -9,6 +9,7 @@ import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Description;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
+import org.neo4j.procedure.TerminationGuard;
 
 import java.util.Collections;
 import java.util.List;
@@ -25,6 +26,9 @@ public class LoadJson {
 
     @Context
     public GraphDatabaseService db;
+
+    @Context
+    public TerminationGuard terminationGuard;
 
     @SuppressWarnings("unchecked")
     @Procedure

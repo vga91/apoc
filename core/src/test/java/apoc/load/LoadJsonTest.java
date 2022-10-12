@@ -3,6 +3,7 @@ package apoc.load;
 import apoc.util.CompressionAlgo;
 import apoc.util.JsonUtil;
 import apoc.util.TestUtil;
+import apoc.util.TransactionTestUtil;
 import apoc.util.Util;
 import apoc.util.collection.Iterators;
 import org.apache.commons.lang.exception.ExceptionUtils;
@@ -422,5 +423,14 @@ public class LoadJsonTest {
                     Map<String, Object> value = (Map<String, Object>) row.get("value");
                     assertFalse("value should be not empty", value.isEmpty());
                 });
+    }
+
+    @Test
+    public void shouldTerminateImportWhenTransactionIsTimedOut() {
+        String filename = "https://devrel-data-science.s3.us-east-2.amazonaws.com/twitch_all.json";
+        final String query = "CALL apoc.load.json($file)";
+        final Map<String, Object> file = map("file", filename);
+
+        TransactionTestUtil.checkTerminationGuard(db, query, file);
     }
 }

@@ -33,6 +33,7 @@ public class QueueBasedSpliterator<T> implements Spliterator<T> {
             foundTombstone = true;
             return false;
         } else {
+            // todo - qualcosa del genere anche in apoc.load.json??
             action.accept(element);
             return true;
         }

@@ -2,6 +2,7 @@ package apoc.load;
 
 import apoc.util.CompressionAlgo;
 import apoc.util.TestUtil;
+import apoc.util.TransactionTestUtil;
 import apoc.util.collection.Iterables;
 import apoc.util.collection.Iterators;
 import apoc.xml.XmlTestUtils;
@@ -538,5 +539,14 @@ public class XmlTest {
             assertEquals(except.getMessage(), "XML documents with a DOCTYPE are not allowed.");
             throw e;
         }
+    }
+
+    @Test
+    public void testParseWithXPath222() throws Exception {
+        final String file = ClassLoader.getSystemResource("largeFile.graphml").toString();
+        TransactionTestUtil.checkTerminationGuard(db, "call apoc.load.xml($file)", Map.of("file", file));
+//        testCall(db, "RETURN apoc.xml.parse($xmlString, '/catalog/book[title=\"Maeve Ascendant\"]/.') AS result",
+//                map("xmlString", xmlString),
+//                (r) -> assertEquals(XmlTestUtils.XML_XPATH_AS_NESTED_MAP, r.get("result")));
     }
 }

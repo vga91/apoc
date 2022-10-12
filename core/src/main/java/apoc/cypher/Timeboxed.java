@@ -2,6 +2,7 @@ package apoc.cypher;
 
 import apoc.Pools;
 import apoc.result.MapResult;
+import apoc.util.Util;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
@@ -11,6 +12,7 @@ import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Description;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
+import org.neo4j.procedure.TerminationGuard;
 
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -36,6 +38,9 @@ public class Timeboxed {
     @Context
     public Pools pools;
 
+    @Context
+    public TerminationGuard terminationGuard;
+
     private final static Map<String,Object> POISON = Collections.singletonMap("__magic", "POISON");
 
     @Procedure
@@ -53,8 +58,10 @@ public class Timeboxed {
                 Result result = innerTx.execute(cypher, params == null ? Collections.EMPTY_MAP : params);
                 while (result.hasNext()) {
                     final Map<String, Object> map = result.next();
+                    // todo - *NEXT (put the termination control??)
                     offerToQueue(queue, map, timeout);
                 }
+                // todo - *NEXT (put the termination control??)
                 offerToQueue(queue, POISON, timeout);
                 innerTx.commit();
             } catch (TransactionTerminatedException e) {
@@ -64,12 +71,17 @@ public class Timeboxed {
             }
         });
 
+
+        // todo  - some operations not allowed, maybe scheduleATFixedTask??? Or maybe put something in *NEXT, see above
+
         //
         pools.getScheduledExecutorService().schedule(() -> {
             Transaction tx = txAtomic.get();
             if (tx==null) {
+                System.out.println("tx = " + tx);
                 log.debug("tx is null, either the other transaction finished gracefully or has not yet been start.");
             } else {
+                System.out.println("tx1 = " + tx);
                 tx.terminate();
                 offerToQueue(queue, POISON, timeout);
                 log.warn("terminating transaction, putting POISON onto queue");
@@ -86,6 +98,13 @@ public class Timeboxed {
                 if (hasFinished) {
                     return false;
                 } else {
+                    System.out.println("Timeboxed.hasNext");
+                    if (Util.transactionIsTerminated(terminationGuard)) {
+                        // todo - fare una cosa del genere anche per periodic e tutte le altre con innerTx
+                        txAtomic.get().terminate();
+                        return false;
+                    }
+
                     try {
                         nextElement = queue.poll(timeout, MILLISECONDS);
                         if (nextElement == null) {

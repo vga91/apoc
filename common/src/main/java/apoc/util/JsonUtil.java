@@ -95,6 +95,7 @@ public class JsonUtil {
             InputStream input = FileUtils.inputStreamFor(urlOrBinary, headers, payload, compressionAlgo);
             JsonParser parser = OBJECT_MAPPER.getFactory().createParser(input);
             MappingIterator<Object> it = OBJECT_MAPPER.readValues(parser, Object.class);
+            // todo - credo qui intorno...
             Stream<Object> stream = StreamSupport.stream(Spliterators.spliteratorUnknownSize(it, 0), false);
             return StringUtils.isBlank(path) ? stream : stream.map((value) -> JsonPath.parse(value, getJsonPathConfig(options)).read(path));
         } catch (IOException e) {

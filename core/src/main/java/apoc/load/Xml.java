@@ -8,6 +8,7 @@ import apoc.result.NodeResult;
 import apoc.util.CompressionAlgo;
 import apoc.util.CompressionConfig;
 import apoc.util.FileUtils;
+import apoc.util.Util;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.neo4j.graphdb.Label;
@@ -19,6 +20,7 @@ import org.neo4j.procedure.Description;
 import org.neo4j.procedure.Mode;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
+import org.neo4j.procedure.TerminationGuard;
 import org.neo4j.procedure.UserFunction;
 import org.w3c.dom.CharacterData;
 import org.w3c.dom.Document;
@@ -82,6 +84,9 @@ public class Xml {
 
     @Context
     public Log log;
+
+    @Context
+    public TerminationGuard terminationGuard;
 
     @Procedure
     @Description("apoc.load.xml('http://example.com/test.xml', 'xPath',config, false) YIELD value as doc CREATE (p:Person) SET p.name = doc.name - load from XML URL (e.g. web-api) to import XML as single nested map with attributes and _type, _text and _childrenx fields.")
@@ -190,6 +195,7 @@ public class Xml {
     }
 
     private void handleNode(Deque<Map<String, Object>> stack, Node node, boolean simpleMode) {
+        Util.transactionIsTerminated(terminationGuard, true);
 
         // Handle document node
         if (node.getNodeType() == Node.DOCUMENT_NODE) {
