@@ -797,20 +797,33 @@ public class Util {
      * @return
      *
      */
-    public static boolean transactionIsTerminated(TerminationGuard db) {
-        return transactionIsTerminated(db, false);
-    }
+//    public static boolean transactionIsTerminated(TerminationGuard db) {
+//        return transactionIsTerminated(db, false);
+//    }
     
-    public static boolean transactionIsTerminated(TerminationGuard db, boolean withException) {
+//    public static boolean transactionIsTerminated(TerminationGuard db, boolean withException) {
+//        try {
+//            db.check();
+//            return false;
+//        } catch (TransactionTerminatedException | NotInTransactionException tge) {
+//            if (withException) {
+//                throw new RuntimeException(tge);
+//            }
+//            return true;
+//        }
+//    }
+
+    public static boolean transactionIsTerminated(TerminationGuard db) {
         try {
             db.check();
             return false;
         } catch (TransactionTerminatedException | NotInTransactionException tge) {
-            if (withException) {
-                throw new RuntimeException(tge);
-            }
+//            System.out.println("transaction correcyly catched");
             return true;
-        }
+        }/* catch (java.lang.Exception e) {
+            System.out.println("other exc " + e.getMessage());
+            return true;
+        }*/
     }
 
     public static void waitForFutures(List<Future> futures) {

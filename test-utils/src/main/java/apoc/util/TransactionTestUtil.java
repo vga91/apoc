@@ -7,6 +7,7 @@ import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.TransactionFailureException;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -32,7 +33,30 @@ public class TransactionTestUtil {
 
         Future<String> future = executor.submit(callable);
 
+        terminateAndCheckTransaction(db, query);
+
+        // check that the procedure/function fails with TransactionFailureException when transaction is terminated
+        try {
+            future.get(10L, TimeUnit.SECONDS);
+            fail("Should fail because of TransactionFailureException");
+        } catch (ExecutionException e) {
+            final Throwable rootCause = ExceptionUtils.getRootCause(e);
+            assertTrue(rootCause instanceof TransactionFailureException);
+            final String expected = "The transaction has been terminated. " +
+                    "Retry your operation in a new transaction, and you should see a successful result. Explicitly terminated by the user. ";
+            assertEquals(expected, rootCause.getMessage());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    public static void terminateAndCheckTransaction(GraphDatabaseService db, String query) {
         // waiting for apoc query to cancel when it is found
+        final List<String> transactionId2 = TestUtil.firstColumn(db,
+                "SHOW TRANSACTIONS YIELD currentQuery",
+                map("query", query));
+        
         final String transactionId = TestUtil.singleResultFirstColumn(db,
                 "SHOW TRANSACTIONS YIELD currentQuery, transactionId WHERE currentQuery = $query RETURN transactionId",
                 map("query", query));
@@ -50,25 +74,13 @@ public class TransactionTestUtil {
             return db.executeTransactionally(transactionListCommand,
                     map("query", query),
                     result -> {
-                        final ResourceIterator<String> queryIterator = result.columnAs("currentQuery");
-                        final String first = queryIterator.next();
-                        return first.equals(transactionListCommand) && !queryIterator.hasNext();
+//                        final ResourceIterator<String> queryIterator = 
+                        return result.columnAs("currentQuery")
+                                .stream()
+                                .noneMatch(currQuery -> currQuery.equals(query));
+//                        final String first = queryIterator.next();
+//                        return first.equals(transactionListCommand) && !queryIterator.hasNext();
                     } );
-        }, (value) -> value, 10L, TimeUnit.SECONDS);
-
-        // check that the procedure/function fails with TransactionFailureException when transaction is terminated
-        try {
-            future.get(10L, TimeUnit.SECONDS);
-            fail("Should fail because of TransactionFailureException");
-        } catch (ExecutionException e) {
-            final Throwable rootCause = ExceptionUtils.getRootCause(e);
-            assertTrue(rootCause instanceof TransactionFailureException);
-            final String expected = "The transaction has been terminated. " +
-                    "Retry your operation in a new transaction, and you should see a successful result. Explicitly terminated by the user. ";
-            assertEquals(expected, rootCause.getMessage());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
+        }, (value) -> value, 20L, TimeUnit.SECONDS);
     }
 }

@@ -7,6 +7,7 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.TransactionTerminatedException;
+import org.neo4j.kernel.impl.coreapi.TransactionImpl;
 import org.neo4j.logging.Log;
 import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Description;
@@ -56,13 +57,29 @@ public class Timeboxed {
             try (Transaction innerTx = db.beginTx()) {
                 txAtomic.set(innerTx);
                 Result result = innerTx.execute(cypher, params == null ? Collections.EMPTY_MAP : params);
+                System.out.println("result next = " + result);
                 while (result.hasNext()) {
+                    if (Util.transactionIsTerminated(terminationGuard)) {
+                        // todo - fare una cosa del genere anche per periodic e tutte le altre con innerTx
+                        txAtomic.get().close();
+                        offerToQueue(queue, POISON, timeout);
+                        return;
+                    }
+
+
                     final Map<String, Object> map = result.next();
                     // todo - *NEXT (put the termination control??)
                     offerToQueue(queue, map, timeout);
                 }
                 // todo - *NEXT (put the termination control??)
                 offerToQueue(queue, POISON, timeout);
+                if (Util.transactionIsTerminated(terminationGuard)) {
+                    // todo - fare una cosa del genere anche per periodic e tutte le altre con innerTx
+                    txAtomic.get().terminate();
+                    offerToQueue(queue, POISON, timeout);
+                    return;
+                }
+                System.out.println("result poison = ");
                 innerTx.commit();
             } catch (TransactionTerminatedException e) {
                 log.warn("query " + cypher + " has been terminated");
@@ -82,7 +99,7 @@ public class Timeboxed {
                 log.debug("tx is null, either the other transaction finished gracefully or has not yet been start.");
             } else {
                 System.out.println("tx1 = " + tx);
-                tx.terminate();
+                tx.close();
                 offerToQueue(queue, POISON, timeout);
                 log.warn("terminating transaction, putting POISON onto queue");
             }
@@ -99,9 +116,15 @@ public class Timeboxed {
                     return false;
                 } else {
                     System.out.println("Timeboxed.hasNext");
+//                    terminationGuard.check();
                     if (Util.transactionIsTerminated(terminationGuard)) {
+                        System.out.println("is terminated here");
                         // todo - fare una cosa del genere anche per periodic e tutte le altre con innerTx
-                        txAtomic.get().terminate();
+                        final Transaction transaction = txAtomic.get();
+//                        ((TransactionImpl) transaction).isOpen()
+                        transaction.close();
+//                        throw new RuntimeException("aaaa");
+//                        offerToQueue(queue, POISON, timeout);
                         return false;
                     }
 
