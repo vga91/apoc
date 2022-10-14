@@ -37,7 +37,7 @@ public class TransactionTestUtil {
 
         // check that the procedure/function fails with TransactionFailureException when transaction is terminated
         try {
-            future.get(10L, TimeUnit.SECONDS);
+            future.get(1L, TimeUnit.SECONDS);
             fail("Should fail because of TransactionFailureException");
         } catch (ExecutionException e) {
             final Throwable rootCause = ExceptionUtils.getRootCause(e);
