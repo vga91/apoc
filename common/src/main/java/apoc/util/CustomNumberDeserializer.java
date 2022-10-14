@@ -4,20 +4,19 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.deser.std.UntypedObjectDeserializer;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
 import java.io.IOException;
 
-public class CustomNumberSerializer extends UntypedObjectDeserializer {
+public class CustomNumberDeserializer extends StdDeserializer {
 
-    public CustomNumberSerializer(JavaType listType, JavaType mapType) {
-        super(listType, mapType);
+    public CustomNumberDeserializer(Class<?> vc) {
+        super(vc);
     }
-
+    
     @Override
     public Object deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-
+        
         if (p.hasToken(JsonToken.VALUE_NUMBER_FLOAT)) {
 
             // we convert it either to a double or plain string
@@ -28,7 +27,7 @@ public class CustomNumberSerializer extends UntypedObjectDeserializer {
 
             return p.getDecimalValue().toPlainString();
         }
-
+        
         if (p.hasToken(JsonToken.VALUE_NUMBER_INT)) {
 
             try {
@@ -37,9 +36,8 @@ public class CustomNumberSerializer extends UntypedObjectDeserializer {
                 return p.getValueAsString();
             }
         }
-
-        // fallback to standard deserialization
-        return super.deserialize(p, ctxt);
+        
+        return p.getNumberValue();
     }
     
 }

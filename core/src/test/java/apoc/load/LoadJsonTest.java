@@ -106,12 +106,12 @@ public class LoadJsonTest {
         URL url = ClassLoader.getSystemResource("bigInt.json");
         final String intStringNum = "18446744062065078016";
         final String floatingStringNum = "189769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-        
+
         testCall(db, "CALL apoc.load.json($url, '', {allowBigNum: true})",
                 map("url", url.toString()),
                 (row) -> {
                     final Map<String, Object> actual = (Map<String, Object>) row.get("value");
-                    final Map<String, Object> expected = map("foo", intStringNum, 
+                    final Map<String, Object> expected = map("foo", intStringNum,
                             "bar", intStringNum,
                             "expBigNum", floatingStringNum,
                             "extSmallNum", 1.8976931348623157E30,

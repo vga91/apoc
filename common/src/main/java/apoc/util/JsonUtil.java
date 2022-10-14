@@ -113,7 +113,7 @@ public class JsonUtil {
 
     private static ObjectMapper getBigNumObjMapper() {
         final SimpleModule bigNumModule = new SimpleModule("bigNum")
-                .addDeserializer(Object.class, new CustomNumberSerializer(null, null));
+                .addDeserializer(Number.class, new CustomNumberDeserializer(Number.class));
         return OBJECT_MAPPER.copy()
                 .registerModule(bigNumModule);
     }
