@@ -37,7 +37,7 @@ public class TransactionTestUtil {
 
         // check that the procedure/function fails with TransactionFailureException when transaction is terminated
         try {
-            future.get(1L, TimeUnit.SECONDS);
+            future.get(5L, TimeUnit.SECONDS);
             fail("Should fail because of TransactionFailureException");
         } catch (ExecutionException e) {
             final Throwable rootCause = ExceptionUtils.getRootCause(e);
@@ -60,13 +60,15 @@ public class TransactionTestUtil {
         final String transactionId = TestUtil.singleResultFirstColumn(db,
                 "SHOW TRANSACTIONS YIELD currentQuery, transactionId WHERE currentQuery = $query RETURN transactionId",
                 map("query", query));
+        System.out.println("transactionId = " + transactionId);
 
+        final long l = System.currentTimeMillis();
         assertEventually(() -> db.executeTransactionally("TERMINATE TRANSACTION $transactionId",
                 map("transactionId", transactionId),
                 result -> {
                     final ResourceIterator<String> msgIterator = result.columnAs("message");
                     return msgIterator.hasNext() && msgIterator.next().equals("Transaction terminated.");
-                }), (value) -> value, 10L, TimeUnit.SECONDS);
+                }), (value) -> value, 15L, TimeUnit.SECONDS);
 
         // checking for query cancellation
         assertEventually(() -> {
@@ -77,10 +79,15 @@ public class TransactionTestUtil {
 //                        final ResourceIterator<String> queryIterator = 
                         return result.columnAs("currentQuery")
                                 .stream()
-                                .noneMatch(currQuery -> currQuery.equals(query));
+                                .noneMatch(currQuery -> {
+                                    System.out.println("currQuery = " + currQuery);
+                                    return currQuery.equals(query);
+                                });
 //                        final String first = queryIterator.next();
 //                        return first.equals(transactionListCommand) && !queryIterator.hasNext();
                     } );
-        }, (value) -> value, 20L, TimeUnit.SECONDS);
+        }, (value) -> value, 10L, TimeUnit.SECONDS);
+
+        System.out.println("time=" + (System.currentTimeMillis() - l));
     }
 }

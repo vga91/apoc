@@ -149,15 +149,15 @@ public class ExportCsvTest {
     @Test
     public void testExportInvalidQuoteValue1() throws Exception {
         final String query = Util.readResourceFile("movies.cypher");
-        IntStream.range(0, 1999).forEach(__-> db.executeTransactionally(query));
+        IntStream.range(0, 3999).forEach(__-> db.executeTransactionally(query));
         String fileName = "allEEEE.csv";
         System.out.println("im here");
-//        final long l = System.currentTimeMillis();
-//        testCall(db, "CALL apoc.export.csv.all($file,{})", Map.of("file", fileName), r -> {
-//            System.out.println("r" + r.values());
-//        });
-//        System.out.println("time=" + (System.currentTimeMillis() - l));
-        checkTerminationGuard(db, "CALL apoc.export.csv.all($file,{})", Map.of("file", fileName));
+        final long l = System.currentTimeMillis();
+        testCall(db, "CALL apoc.export.csv.all($file,{})", Map.of("file", fileName), r -> {
+            System.out.println("r" + r.values());
+        });
+        System.out.println("time=" + (System.currentTimeMillis() - l));
+//        checkTerminationGuard(db, "CALL apoc.export.csv.all($file,{})", Map.of("file", fileName));
 //        try {
 //            TestUtil.testCall(db, "CALL apoc.export.csv.all($file,{})",
 //                    map("file", fileName),

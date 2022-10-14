@@ -426,11 +426,21 @@ public class LoadJsonTest {
     }
 
     @Test
-    public void shouldTerminateImportWhenTransactionIsTimedOut() {
-        String filename = "https://devrel-data-science.s3.us-east-2.amazonaws.com/twitch_all.json";
-        final String query = "CALL apoc.load.json($file)";
-        final Map<String, Object> file = map("file", filename);
+    public void shouldTerminateLoadWhenTransactionIsTimedOut() {
+//        String filename = "https://devrel-data-science.s3.us-east-2.amazonaws.com/twitch_all.json";
+        final String query = "CALL apoc.load.json('https://devrel-data-science.s3.us-east-2.amazonaws.com/twitch_all.json')";
+//        final Map<String, Object> file = map("file", filename);
 
-        TransactionTestUtil.checkTerminationGuard(db, query, file);
+//        TransactionTestUtil.checkTerminationGuard(db, query/*, file*/);
+// -- https://github.com/json-iterator/test-data/blob/master/large-file.json
+        final long l = System.currentTimeMillis();
+        // todo - questo il check.. lo fa diverse volte
+        TestUtil.testResult(db, "CALL apoc.load.json('https://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=truehttps://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=true')",
+        // todo - questo il check.. lo fa una volta sola... quindi mi sa che il checkTerminationGuard non va..., forse metterlo a tutti i MapResult...
+//        TestUtil.testResult(db, "CALL apoc.load.json('https://github.com/json-iterator/test-data/blob/master/large-file.json?raw=true')", 
+                r -> {
+            r.resultAsString();
+        });
+        System.out.println("time=" + (System.currentTimeMillis() - l));
     }
 }
