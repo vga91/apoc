@@ -4,10 +4,18 @@ import apoc.util.collection.Iterables;
 import apoc.util.collection.Iterators;
 import apoc.util.collection.NestingResourceIterator;
 import apoc.util.collection.ResourceClosingIterator;
+import org.apache.commons.lang3.tuple.Pair;
+import org.neo4j.graphdb.*;
+import org.neo4j.graphdb.traversal.BranchState;
+import org.neo4j.internal.helpers.collection.NestingIterator;
+//import org.neo4j.internal.helpers.collection.Pair;
+import org.neo4j.memory.HeapEstimator;
+import org.neo4j.memory.MemoryTracker;
+
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
@@ -33,8 +41,11 @@ public class RelationshipSequenceExpander implements PathExpander {
 
     private final List<List<Pair<RelationshipType, Direction>>> relSequences = new ArrayList<>();
     private List<Pair<RelationshipType, Direction>> initialRels = null;
+    private final MemoryTracker memoryTracker;
 
-    public RelationshipSequenceExpander(String relSequenceString, boolean beginSequenceAtStart) {
+    public RelationshipSequenceExpander(String relSequenceString, boolean beginSequenceAtStart, MemoryTracker memoryTracker) {
+        this.memoryTracker = memoryTracker;
+
         int index = 0;
 
         for (String sequenceStep : relSequenceString.split(",")) {
@@ -56,15 +67,17 @@ public class RelationshipSequenceExpander implements PathExpander {
         }
     }
 
-    public RelationshipSequenceExpander(List<String> relSequenceList, boolean beginSequenceAtStart) {
+    public RelationshipSequenceExpander(List<String> relSequenceList, boolean beginSequenceAtStart, MemoryTracker memoryTracker) {
+        this.memoryTracker = memoryTracker;
+
         int index = 0;
 
         for (String sequenceStep : relSequenceList) {
             sequenceStep = sequenceStep.trim();
-            Iterable<Pair<RelationshipType, Direction>> relDirIterable = RelationshipTypeAndDirections.parse(sequenceStep);
+            List<org.apache.commons.lang3.tuple.Pair<RelationshipType, Direction>> relDirIterable = RelationshipTypeAndDirections.parse(sequenceStep);
 
-            List<Pair<RelationshipType, Direction>> stepRels = new ArrayList<>();
-            for (Pair<RelationshipType, Direction> pair : relDirIterable) {
+            List<org.apache.commons.lang3.tuple.Pair<RelationshipType, Direction>> stepRels = new ArrayList<>();
+            for (org.apache.commons.lang3.tuple.Pair<RelationshipType, Direction> pair : relDirIterable) {
                 stepRels.add(pair);
             }
 
@@ -89,26 +102,29 @@ public class RelationshipSequenceExpander implements PathExpander {
         } else {
             stepRels = relSequences.get((initialRels == null ? depth : depth - 1) % relSequences.size());
         }
+
+        final List<Relationship> relationships = Iterators.asList(
+            new NestingIterator<>(
+                    stepRels.iterator()) {
+                @Override
+                protected Iterator<Relationship> createNestedIterator(
+                        Pair<RelationshipType, Direction> entry) {
+                    RelationshipType type = entry.getLeft();
+                    Direction dir = entry.getRight();
+                    if (type != null) {
+                        return ((dir == Direction.BOTH) ? node.getRelationships(type) :
+                                node.getRelationships(dir, type)).iterator();
+                    } else {
+                        return ((dir == Direction.BOTH) ? node.getRelationships() :
+                                node.getRelationships(dir)).iterator();
+                    }
+                }
+            });
+
+        // calculated through HeapEstimator.sizeOfCollection(..)
+        memoryTracker.allocateHeap(HeapEstimator.sizeOf(relationships));
         
-        return Iterables.asResourceIterable(Iterators.asList(new NestingResourceIterator<>(stepRels.iterator()) {
-            @Override
-            protected ResourceIterator<Relationship> createNestedIterator( Pair<RelationshipType,Direction> entry ) {
-                RelationshipType type = entry.getLeft();
-                Direction dir = entry.getRight();
-
-                ResourceIterable<Relationship> relationships1;
-                if ( type == null )
-                {
-                    relationships1 = (dir == Direction.BOTH) ? node.getRelationships() : node.getRelationships( dir );
-                }
-                else
-                {
-                    relationships1 = (dir == Direction.BOTH) ? node.getRelationships( type ) : node.getRelationships( dir, type );
-                }
-
-                return ResourceClosingIterator.fromResourceIterable( relationships1 );
-            }
-        }));
+        return Iterables.asResourceIterable(relationships);
     }
 
     @Override
