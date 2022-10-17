@@ -49,6 +49,8 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
         exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     }
+    
+    def jschVersion = '0.1.55'
 
     // These will be dependencies packaged with the .jar
     api group: 'com.jayway.jsonpath', name: 'json-path', version: '2.7.0'
@@ -69,6 +71,7 @@ dependencies {
     // These will be dependencies not packaged with the .jar
     // They need to be provided either through the database or in an extra .jar
     compileOnly group: 'org.neo4j', name: 'neo4j', version: neo4jVersionEffective
+    compileOnly group: 'com.jcraft', name: 'jsch', version: jschVersion
     compileOnly group: 'com.amazonaws', name: 'aws-java-sdk-s3', version: '1.11.270'
     compileOnly group: 'org.apache.hadoop', name: 'hadoop-common', version: '3.3.2', withoutServers
     compileOnly group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.6.1'
@@ -76,6 +79,7 @@ dependencies {
     // These dependencies affect the tests only, they will not be packaged in the resulting .jar
     testImplementation project(':test-utils')
     testImplementation group: 'com.amazonaws', name: 'aws-java-sdk-s3', version: '1.11.270'
+    testImplementation group: 'com.jcraft', name: 'jsch', version: jschVersion
     testImplementation group: 'junit', name: 'junit', version: '4.13.2'
     testImplementation group: 'com.github.stefanbirkner', name: 'system-rules', version: '1.19.0'
     testImplementation group: 'org.hamcrest', name: 'hamcrest-library', version: '1.3'

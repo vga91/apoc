@@ -7,6 +7,7 @@ import apoc.export.util.ExportConfig;
 import apoc.util.hdfs.HDFSUtils;
 import apoc.util.s3.S3URLConnection;
 import apoc.util.s3.S3UploadUtils;
+import apoc.util.sftp.SftpURLConnection;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.neo4j.configuration.GraphDatabaseSettings;
@@ -44,6 +45,7 @@ public class FileUtils {
         http(true, null),
         https(true, null),
         ftp(true, null),
+        sftp(Util.classExists("com.jcraft.jsch.JSch"), "apoc.util.sftp.SftpURLStreamHandlerFactory"),
         s3(Util.classExists("com.amazonaws.services.s3.AmazonS3"),
                 "apoc.util.s3.S3UrlStreamHandlerFactory"),
         gs(Util.classExists("com.google.cloud.storage.Storage"),
@@ -67,6 +69,8 @@ public class FileUtils {
                     return FileUtils.openS3InputStream(urlAddress);
                 case hdfs:
                     return FileUtils.openHdfsInputStream(urlAddress);
+                case sftp:
+                    return FileUtils.openSftpInputStream(urlAddress);
                 case ftp:
                 case http:
                 case https:
@@ -281,6 +285,14 @@ public class FileUtils {
                     "\nSee the documentation: https://neo4j.github.io/apoc/#_loading_data_from_web_apis_json_xml_csv");
         }
         return S3URLConnection.openS3InputStream(new URL(urlAddress));
+    }
+
+    public static StreamConnection openSftpInputStream(String urlAddress) throws IOException {
+        if (!SupportedProtocols.sftp.isEnabled()) {
+            throw new MissingDependencyException("Cannot find the jsch jar in the plugins folder. \n" +
+                    "Please, add this jar into the plugins folder: https://repo1.maven.org/maven2/com/jcraft/jsch/0.1.55/jsch-0.1.55.jar");
+        }
+        return SftpURLConnection.openSftpInputStream(new URL(urlAddress));
     }
 
     public static StreamConnection openHdfsInputStream(String urlAddress) throws IOException {
