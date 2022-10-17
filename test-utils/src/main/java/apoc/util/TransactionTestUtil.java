@@ -53,18 +53,31 @@ public class TransactionTestUtil {
 
     public static void terminateAndCheckTransaction(GraphDatabaseService db, String query) {
         // waiting for apoc query to cancel when it is found
-        final List<String> transactionId2 = TestUtil.firstColumn(db,
-                "SHOW TRANSACTIONS YIELD currentQuery",
-                map("query", query));
-        
-        final String transactionId = TestUtil.singleResultFirstColumn(db,
-                "SHOW TRANSACTIONS YIELD currentQuery, transactionId WHERE currentQuery = $query RETURN transactionId",
-                map("query", query));
-        System.out.println("transactionId = " + transactionId);
+//        final String transactionId = TestUtil.singleResultFirstColumn(db,
+//                "SHOW TRANSACTIONS YIELD currentQuery, transactionId WHERE currentQuery = $query RETURN transactionId",
+//                map("query", query));
+//        System.out.println("transactionId = " + transactionId);
+
+        final String[] transactionId = new String[1];
+        assertEventually(() -> db.executeTransactionally("SHOW TRANSACTIONS YIELD currentQuery, transactionId WHERE currentQuery = $query RETURN transactionId",
+                map("query", query),
+                result -> {
+                    final ResourceIterator<String> msgIterator = result.columnAs("transactionId");
+                    if (!msgIterator.hasNext()) {
+                        return false;
+                    }
+                    transactionId[0] = msgIterator.next();
+                    return transactionId[0] != null;
+//                    if (next != null) {
+//                        transactionId[0] = next;
+//                    }
+//                    
+//                    return msgIterator.hasNext() && msgIterator.next().equals("Transaction terminated.");
+                }), (value) -> value, 15L, TimeUnit.SECONDS);
 
         final long l = System.currentTimeMillis();
         assertEventually(() -> db.executeTransactionally("TERMINATE TRANSACTION $transactionId",
-                map("transactionId", transactionId),
+                map("transactionId", transactionId[0]),
                 result -> {
                     final ResourceIterator<String> msgIterator = result.columnAs("message");
                     return msgIterator.hasNext() && msgIterator.next().equals("Transaction terminated.");
@@ -86,7 +99,7 @@ public class TransactionTestUtil {
 //                        final String first = queryIterator.next();
 //                        return first.equals(transactionListCommand) && !queryIterator.hasNext();
                     } );
-        }, (value) -> value, 10L, TimeUnit.SECONDS);
+        }, (value) -> value, 3L, TimeUnit.SECONDS);
 
         System.out.println("time=" + (System.currentTimeMillis() - l));
     }

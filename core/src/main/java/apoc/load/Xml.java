@@ -195,8 +195,7 @@ public class Xml {
     }
 
     private void handleNode(Deque<Map<String, Object>> stack, Node node, boolean simpleMode) {
-//        TODO
-//        Util.transactionIsTerminated(terminationGuard, true);
+        terminationGuard.check();
 
         // Handle document node
         if (node.getNodeType() == Node.DOCUMENT_NODE) {

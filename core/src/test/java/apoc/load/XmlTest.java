@@ -63,6 +63,14 @@ public class XmlTest {
     }
 
     @Test
+    public void testTerminateLoadXml() {
+        testCall(db, "CALL apoc.load.xml('file:databases.xml')", //  YIELD value RETURN value
+                (row) -> {
+                    assertEquals(XmlTestUtils.XML_AS_NESTED_MAP, row.get("value"));
+                });
+    }
+
+    @Test
     public void testLoadXmlAsStream() {
         testResult(db, "CALL apoc.load.xml('file:databases.xml', '/parent/child')", //  YIELD value RETURN value
                 (res) -> {
@@ -543,6 +551,7 @@ public class XmlTest {
 
     @Test
     public void testParseWithXPath222() throws Exception {
+        // todo - testare senza guard
         final String file = ClassLoader.getSystemResource("largeFile.graphml").toString();
         TransactionTestUtil.checkTerminationGuard(db, "call apoc.load.xml($file)", Map.of("file", file));
 //        testCall(db, "RETURN apoc.xml.parse($xmlString, '/catalog/book[title=\"Maeve Ascendant\"]/.') AS result",

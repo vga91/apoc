@@ -14,6 +14,7 @@ import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.Header;
 
 import org.neo4j.configuration.GraphDatabaseInternalSettings;
+import org.neo4j.configuration.GraphDatabaseSettings;
 import org.neo4j.graphdb.QueryExecutionException;
 import org.neo4j.graphdb.Result;
 import org.neo4j.test.rule.DbmsRule;
@@ -44,6 +45,8 @@ import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.matchers.Times.exactly;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
+import static org.neo4j.configuration.GraphDatabaseSettings.TransactionStateMemoryAllocation.OFF_HEAP;
+import static org.neo4j.configuration.SettingValueParsers.BYTES;
 
 public class LoadJsonTest {
 
@@ -61,6 +64,9 @@ public class LoadJsonTest {
 
     @Rule
     public DbmsRule db = new ImpermanentDbmsRule()
+            .withSetting(GraphDatabaseSettings.memory_tracking, true)
+            .withSetting(GraphDatabaseSettings.tx_state_memory_allocation, OFF_HEAP)
+            .withSetting(GraphDatabaseSettings.tx_state_max_off_heap_memory, BYTES.parse("8G"))
             .withSetting(GraphDatabaseInternalSettings.cypher_ip_blocklist, List.of(new IPAddressString("127.168.0.0/8")));
 
 	@Before public void setUp() throws Exception {
@@ -434,13 +440,15 @@ public class LoadJsonTest {
 //        TransactionTestUtil.checkTerminationGuard(db, query/*, file*/);
 // -- https://github.com/json-iterator/test-data/blob/master/large-file.json
         final long l = System.currentTimeMillis();
-        // todo - questo il check.. lo fa diverse volte
-        TestUtil.testResult(db, "CALL apoc.load.json('https://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=truehttps://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=true')",
-        // todo - questo il check.. lo fa una volta sola... quindi mi sa che il checkTerminationGuard non va..., forse metterlo a tutti i MapResult...
-//        TestUtil.testResult(db, "CALL apoc.load.json('https://github.com/json-iterator/test-data/blob/master/large-file.json?raw=true')", 
-                r -> {
-            r.resultAsString();
-        });
-        System.out.println("time=" + (System.currentTimeMillis() - l));
+//        // todo - questo il check.. lo fa diverse volte
+//        TestUtil.testResult(db, "CALL apoc.load.json('https://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=truehttps://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=true')",
+////        // todo - questo il check.. lo fa una volta sola... quindi mi sa che il checkTerminationGuard non va..., forse metterlo a tutti i MapResult...
+////        TestUtil.testResult(db, "CALL apoc.load.json('https://github.com/json-iterator/test-data/blob/master/large-file.json?raw=true')", 
+//                r -> {
+//            r.getQueryStatistics();
+//        });
+//        System.out.println("time=" + (System.currentTimeMillis() - l));
+        
+        TransactionTestUtil.checkTerminationGuard(db, "CALL apoc.load.json('https://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=truehttps://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=true', '$[0]')"/*, file*/);
     }
 }

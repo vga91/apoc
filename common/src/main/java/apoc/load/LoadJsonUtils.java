@@ -23,17 +23,24 @@ public class LoadJsonUtils {
         Stream<Object> stream = JsonUtil.loadJson(urlOrKeyOrBinary,headers,payload, path, failOnError, compressionAlgo, pathOptions);
         return stream.flatMap((value) -> {
 //            System.out.println("check...");
-//            if (terminationGuard != null) {
-                System.out.println("check...");
+            if (terminationGuard != null) {
+//                System.out.println("check..." + " ..fine");
                 terminationGuard.check();
-//            }
+            }
             if (value instanceof Map) {
                 return Stream.of(new MapResult((Map) value));
             }
             if (value instanceof List) {
+//                System.out.println("listone");
                 if (((List)value).isEmpty()) return Stream.empty();
                 if (((List) value).get(0) instanceof Map)
-                    return ((List) value).stream().map((v) -> new MapResult((Map) v));
+                    return ((List) value).stream().map((v) -> {
+                        if (terminationGuard != null) {
+                            terminationGuard.check();
+                        }
+//                        System.out.println("lista qua..");
+                        return new MapResult((Map) v);
+                    });
                 return Stream.of(new MapResult(Collections.singletonMap("result",value)));
             }
             if(!failOnError)
