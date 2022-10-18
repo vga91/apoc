@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.neo4j.configuration.GraphDatabaseSettings.SYSTEM_DATABASE_NAME;
+import static org.neo4j.graphdb.QueryExecutionType.QueryType.READ_ONLY;
+import static org.neo4j.graphdb.QueryExecutionType.QueryType.READ_WRITE;
+import static org.neo4j.graphdb.QueryExecutionType.QueryType.WRITE;
 
 
 public class TriggerNewProcedures {
@@ -63,6 +66,10 @@ public class TriggerNewProcedures {
     public Stream<TriggerInfo> install(@Name("databaseName") String databaseName, @Name("name") String name, @Name("statement") String statement, @Name(value = "selector")  Map<String,Object> selector, @Name(value = "config", defaultValue = "{}") Map<String,Object> config) {
         checkInSystemWriter();
         checkTargetDatabase(databaseName);
+
+        Util.validateQuery(, statement,
+                READ_ONLY, WRITE, READ_WRITE);
+        
         Map<String,Object> params = (Map)config.getOrDefault("params", Collections.emptyMap());
         TriggerInfo removed = TriggerHandlerNewProcedures.install(databaseName, name, statement, selector, params);
         final TriggerInfo triggerInfo = new TriggerInfo(name, statement, selector, params, true, false);
