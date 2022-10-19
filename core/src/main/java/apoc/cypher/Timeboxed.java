@@ -57,7 +57,6 @@ public class Timeboxed {
             try (Transaction innerTx = db.beginTx()) {
                 txAtomic.set(innerTx);
                 Result result = innerTx.execute(cypher, params == null ? Collections.EMPTY_MAP : params);
-                System.out.println("result next = " + result);
                 while (result.hasNext()) {
                     if (Util.transactionIsTerminated(terminationGuard)) {
                         // todo - fare una cosa del genere anche per periodic e tutte le altre con innerTx

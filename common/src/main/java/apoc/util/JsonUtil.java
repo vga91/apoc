@@ -96,12 +96,7 @@ public class JsonUtil {
             InputStream input = FileUtils.inputStreamFor(urlOrBinary, headers, payload, compressionAlgo);
             JsonParser parser = OBJECT_MAPPER.getFactory().createParser(input);
             MappingIterator<Object> it = OBJECT_MAPPER.readValues(parser, Object.class);
-//            final Object next = it.next();
-            // todo - credo qui intorno...
-            System.out.println("before split");
-//            QueueBasedSpliterator<ProgressInfo> spliterator = new QueueBasedSpliterator<>(it, ProgressInfo.EMPTY, null, Integer.MAX_VALUE);
             Stream<Object> stream = StreamSupport.stream(Spliterators.spliteratorUnknownSize(it, 0), false);
-            System.out.println("after split");
             return StringUtils.isBlank(path) ? stream : stream.map((value) -> JsonPath.parse(value, getJsonPathConfig(options)).read(path));
         } catch (IOException e) {
             if(!failOnError) {
@@ -109,15 +104,8 @@ public class JsonUtil {
             } else {
                 throw new RuntimeException(e);
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-            
         }
     }
-
-//    class IteratorSpliteratorDue extends Spliterators.AbstractSpliterator {
-//
-//    }
 
     public static Stream<Object> loadJson(String url) {
         return loadJson(url,null,null,"", true, null, null);

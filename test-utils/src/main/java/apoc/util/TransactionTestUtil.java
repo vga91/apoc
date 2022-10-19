@@ -4,6 +4,7 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.QueryExecutionException;
 import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.graphdb.Transaction;
+import org.neo4j.graphdb.TransactionTerminatedException;
 
 import java.util.Collections;
 import java.util.Map;
@@ -30,7 +31,7 @@ public class TransactionTestUtil {
         try(Transaction transaction = db.beginTx(5, TimeUnit.SECONDS)) {
             transaction.execute(query, params).resultAsString();
             fail("Should fail because of TransactionFailureException");
-        } catch (QueryExecutionException e) {
+        } catch (QueryExecutionException | TransactionTerminatedException e) {
             final String expected = "The transaction has been terminated. " +
                     "Retry your operation in a new transaction, and you should see a successful result. Explicitly terminated by the user. ";
             assertEquals(expected, e.getMessage());

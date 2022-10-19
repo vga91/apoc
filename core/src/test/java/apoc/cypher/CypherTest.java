@@ -184,6 +184,18 @@ public class CypherTest {
     }
 
     @Test
+    public void testDoItWithTermination() {
+        final String query = "CALL apoc.cypher.run('unwind range (0, 99) as id CALL apoc.util.sleep(2000) return 0', {})";
+        checkTerminationGuard(db, query);
+        
+        final String query2 = "CALL apoc.cypher.doIt('CALL apoc.util.sleep(20000) return 0', {})";
+        checkTerminationGuard(db, query2);
+        
+        final String query3 = "CALL apoc.cypher.doIt('unwind range (0, 9999) as id CREATE (n:Test) return n', {})";
+        checkTerminationGuard(db, query3);
+    }
+
+    @Test
     public void testRunMany() {
         final Map<String, Object> map = map("name", "John", "name2", "Doe");
         testResult(db, "CALL apoc.cypher.runMany('CREATE (n:Node {name:$name});\nMATCH (n {name:$name}) CREATE (n)-[:X {name:$name2}]->(n);',$params)",
