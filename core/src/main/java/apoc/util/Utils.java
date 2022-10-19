@@ -63,7 +63,6 @@ public class Utils {
             try {
                 Thread.sleep(5);
                 terminationGuard.check();
-                System.out.println("Utils.sleep continue");
             } catch (TransactionTerminatedException e) {
                 return;
             }

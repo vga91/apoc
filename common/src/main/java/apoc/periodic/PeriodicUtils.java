@@ -195,6 +195,7 @@ public class PeriodicUtils {
         AtomicInteger activeFutures = new AtomicInteger(0);
 
         do {
+            System.out.println("iterator = " + Util.transactionIsTerminated(terminationGuard));
             if (Util.transactionIsTerminated(terminationGuard)) break;
 
             if (activeFutures.get() < concurrency || !parallel) {

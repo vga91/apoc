@@ -433,22 +433,7 @@ public class LoadJsonTest {
 
     @Test
     public void shouldTerminateLoadWhenTransactionIsTimedOut() {
-//        String filename = "https://devrel-data-science.s3.us-east-2.amazonaws.com/twitch_all.json";
-        final String query = "CALL apoc.load.json('https://devrel-data-science.s3.us-east-2.amazonaws.com/twitch_all.json')";
-//        final Map<String, Object> file = map("file", filename);
-
-//        TransactionTestUtil.checkTerminationGuard(db, query/*, file*/);
-// -- https://github.com/json-iterator/test-data/blob/master/large-file.json
-        final long l = System.currentTimeMillis();
-//        // todo - questo il check.. lo fa diverse volte
-//        TestUtil.testResult(db, "CALL apoc.load.json('https://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=truehttps://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=true')",
-////        // todo - questo il check.. lo fa una volta sola... quindi mi sa che il checkTerminationGuard non va..., forse metterlo a tutti i MapResult...
-////        TestUtil.testResult(db, "CALL apoc.load.json('https://github.com/json-iterator/test-data/blob/master/large-file.json?raw=true')", 
-//                r -> {
-//            r.getQueryStatistics();
-//        });
-//        System.out.println("time=" + (System.currentTimeMillis() - l));
-        
-        TransactionTestUtil.checkTerminationGuard(db, "CALL apoc.load.json('https://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=truehttps://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=true', '$[0]')"/*, file*/);
+        final String query = "CALL apoc.load.json('https://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=truehttps://github.com/knowitall/yelp-dataset-challenge/blob/master/data/yelp_phoenix_academic_dataset/yelp_academic_dataset_review.json?raw=true')";
+        TransactionTestUtil.checkTerminationGuard(db, query);
     }
 }

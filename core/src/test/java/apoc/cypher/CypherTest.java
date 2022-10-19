@@ -28,11 +28,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import static apoc.ApocConfig.APOC_IMPORT_FILE_ENABLED;
 import static apoc.ApocConfig.apocConfig;
@@ -42,7 +37,8 @@ import static apoc.util.TestUtil.testFail;
 import static apoc.util.TestUtil.testResult;
 import static apoc.util.TransactionTestUtil.checkTerminationGuard;
 //import static apoc.util.TransactionTestUtil.terminateAndCheckTransaction;
-import static apoc.util.TransactionTestUtil.terminateAndCheckTransaction;
+import static apoc.util.TransactionTestUtil.checkTransactionNotInList;
+import static apoc.util.TransactionTestUtil.terminateTransactionAsync;
 import static apoc.util.Util.map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -166,35 +162,25 @@ public class CypherTest {
                 result -> result.hasNext()));
     }
 
-    @Test(timeout=10000)
+    @Test
     public void testWithTermination() {
         final String query = "CALL apoc.cypher.runTimeboxed('unwind range (0, 99) as id CALL apoc.util.sleep(2000) return 0', null, 20000)";
         checkTerminationGuard(db, query);
-//        assertFalse(db.executeTransactionally(
-//                "CALL apoc.cypher.runTimeboxed('CALL apoc.util.sleep(10000)', null, $timeout)",
-//                singletonMap("timeout", 100),
-//                result -> result.hasNext()));
     }
 
-    @Test(timeout=10000)
-    public void testWithTerminationInnerTransaction() throws ExecutionException, InterruptedException {
+    @Test
+    public void testWithTerminationInnerTransaction() {
         final String innerLongQuery = "CALL apoc.util.sleep(99999) RETURN 0";
         final String query = "CALL apoc.cypher.runTimeboxed($innerQuery, null, 99999)";
-//        final String sss = db.executeTransactionally("CALL apoc.cypher.runTimeboxed('$innerQuery, null, 2000)",
-//                Map.of("innerQuery", innerLongQuery),
-//                Result::resultAsString);
 
-
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Callable<Map<String, Object>> callable = () -> db.executeTransactionally(query, 
-                Map.of("innerQuery", innerLongQuery), 
-                Result::next);
-        Future<Map<String, Object>> future = executor.submit(callable);
-        terminateAndCheckTransaction(db, innerLongQuery);
+        terminateTransactionAsync(db, innerLongQuery);
+        
         // assert query terminated (RETURN 0)
-        final Map<String, Object> s = future.get();
-        assertEquals(Map.of("0", 0L), s.get("value"));
-        System.out.println("CypherTest.testWithTerminationInnerTransaction");
+        TestUtil.testCall(db, query,
+                Map.of("innerQuery", innerLongQuery),
+                row -> assertEquals(Map.of("0", 0L), row.get("value")));
+
+        checkTransactionNotInList(db, query);
     }
 
     @Test

@@ -1,19 +1,12 @@
 package apoc.util;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.QueryExecutionException;
 import org.neo4j.graphdb.ResourceIterator;
-import org.neo4j.graphdb.Result;
-import org.neo4j.graphdb.TransactionFailureException;
+import org.neo4j.graphdb.Transaction;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static apoc.util.MapUtil.map;
@@ -23,84 +16,69 @@ import static org.junit.Assert.fail;
 import static org.neo4j.test.assertion.Assert.assertEventually;
 
 public class TransactionTestUtil {
+    public static final String TRANSACTION_LIST = "SHOW TRANSACTIONS";
+    
     public static void checkTerminationGuard(GraphDatabaseService db, String query) {
         checkTerminationGuard(db, query, Collections.emptyMap());
     }
     
     public static void checkTerminationGuard(GraphDatabaseService db, String query, Map<String, Object> params) {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Callable<String> callable = () -> db.executeTransactionally(query, params, Result::resultAsString);
-
-        Future<String> future = executor.submit(callable);
-
-        terminateAndCheckTransaction(db, query);
+        terminateTransactionAsync(db, query);
 
         // check that the procedure/function fails with TransactionFailureException when transaction is terminated
-        try {
-            future.get(5L, TimeUnit.SECONDS);
+        // todo 5, TimeUnit.SECONDS as parameter
+        try(Transaction transaction = db.beginTx(5, TimeUnit.SECONDS)) {
+            transaction.execute(query, params).resultAsString();
             fail("Should fail because of TransactionFailureException");
-        } catch (ExecutionException e) {
-            final Throwable rootCause = ExceptionUtils.getRootCause(e);
-            assertTrue(rootCause instanceof TransactionFailureException);
+        } catch (QueryExecutionException e) {
             final String expected = "The transaction has been terminated. " +
                     "Retry your operation in a new transaction, and you should see a successful result. Explicitly terminated by the user. ";
-            assertEquals(expected, rootCause.getMessage());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            assertEquals(expected, e.getMessage());
         }
-
+        
+        checkTransactionNotInList(db, query);
     }
 
-    public static void terminateAndCheckTransaction(GraphDatabaseService db, String query) {
-        // waiting for apoc query to cancel when it is found
-//        final String transactionId = TestUtil.singleResultFirstColumn(db,
-//                "SHOW TRANSACTIONS YIELD currentQuery, transactionId WHERE currentQuery = $query RETURN transactionId",
-//                map("query", query));
-//        System.out.println("transactionId = " + transactionId);
-
-        final String[] transactionId = new String[1];
-        assertEventually(() -> db.executeTransactionally("SHOW TRANSACTIONS YIELD currentQuery, transactionId WHERE currentQuery = $query RETURN transactionId",
+    public static void checkTransactionNotInList(GraphDatabaseService db, String query) {
+        // checking for query cancellation from transaction list command
+        TestUtil.testResult(db, TRANSACTION_LIST,
                 map("query", query),
                 result -> {
-                    final ResourceIterator<String> msgIterator = result.columnAs("transactionId");
-                    if (!msgIterator.hasNext()) {
-                        return false;
-                    }
-                    transactionId[0] = msgIterator.next();
-                    return transactionId[0] != null;
-//                    if (next != null) {
-//                        transactionId[0] = next;
-//                    }
-//                    
-//                    return msgIterator.hasNext() && msgIterator.next().equals("Transaction terminated.");
-                }), (value) -> value, 15L, TimeUnit.SECONDS);
+                    final boolean currentQuery = result.columnAs("currentQuery")
+                            .stream()
+                            .noneMatch(currQuery -> currQuery.equals(query));
+                    assertTrue(currentQuery);
+                });
+    }
 
-        final long l = System.currentTimeMillis();
-        assertEventually(() -> db.executeTransactionally("TERMINATE TRANSACTION $transactionId",
-                map("transactionId", transactionId[0]),
-                result -> {
-                    final ResourceIterator<String> msgIterator = result.columnAs("message");
-                    return msgIterator.hasNext() && msgIterator.next().equals("Transaction terminated.");
-                }), (value) -> value, 15L, TimeUnit.SECONDS);
-
-        // checking for query cancellation
-        assertEventually(() -> {
-            final String transactionListCommand = "SHOW TRANSACTIONS";
-            return db.executeTransactionally(transactionListCommand,
-                    map("query", query),
+    public static void terminateTransactionAsync(GraphDatabaseService db, String query) {
+        new Thread(() -> {
+            System.out.println("TransactionTestUtil.terminateAndCheckTransaction");
+            // waiting for apoc query to cancel when it is found
+            final String[] transactionId = new String[1];
+            
+            assertEventually(() -> db.executeTransactionally(TRANSACTION_LIST + " YIELD currentQuery, transactionId " +
+                            "WHERE currentQuery CONTAINS $query AND NOT currentQuery STARTS WITH $transactionList " +
+                            "RETURN transactionId",
+                    map("query", query, "transactionList", TRANSACTION_LIST),
                     result -> {
-//                        final ResourceIterator<String> queryIterator = 
-                        return result.columnAs("currentQuery")
-                                .stream()
-                                .noneMatch(currQuery -> {
-                                    System.out.println("currQuery = " + currQuery);
-                                    return currQuery.equals(query);
-                                });
-//                        final String first = queryIterator.next();
-//                        return first.equals(transactionListCommand) && !queryIterator.hasNext();
-                    } );
-        }, (value) -> value, 3L, TimeUnit.SECONDS);
+                        final ResourceIterator<String> msgIterator = result.columnAs("transactionId");
+                        if (!msgIterator.hasNext()) {
+                            return false;
+                        }
+                        transactionId[0] = msgIterator.next();
+                        return transactionId[0] != null;
+                    }), (value) -> value, 5L, TimeUnit.SECONDS);
+    
+            // todo - delete
+            System.out.println("transactionId = " + transactionId[0]);
+            final long l = System.currentTimeMillis();
+            TestUtil.testCall(db, "TERMINATE TRANSACTION $transactionId",
+                    map("transactionId", transactionId[0]),
+                    result -> assertEquals("Transaction terminated.", result.get("message")));
+            // todo - delete
+            System.out.println("time=" + (System.currentTimeMillis() - l));
+        }).start();
 
-        System.out.println("time=" + (System.currentTimeMillis() - l));
     }
 }
