@@ -164,7 +164,15 @@ public class CypherTest {
 
     @Test
     public void testWithTermination() {
-        final String query = "CALL apoc.cypher.runTimeboxed('unwind range (0, 99) as id CALL apoc.util.sleep(2000) return 0', null, 20000)";
+        final String query = "CALL apoc.cypher.runTimeboxed('unwind range (0, 10) as id CALL apoc.util.sleep(2000) return 0', null, 20000)";
+        checkTerminationGuard(db, query);
+    }
+
+    @Test
+    // todo - document it,,,
+    public void testWithTermination1() {
+//        final String innerLongQuery = "CALL apoc.util.sleep(99999) RETURN 0";
+        final String query = "CALL apoc.cypher.runTimeboxed('CALL apoc.util.sleep(40000) RETURN 0', null, 99999)";
         checkTerminationGuard(db, query);
     }
 

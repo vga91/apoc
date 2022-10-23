@@ -1,5 +1,6 @@
 package apoc.util;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.QueryExecutionException;
 import org.neo4j.graphdb.ResourceIterator;
@@ -28,13 +29,20 @@ public class TransactionTestUtil {
 
         // check that the procedure/function fails with TransactionFailureException when transaction is terminated
         // todo 5, TimeUnit.SECONDS as parameter
+        
+//        db.executeTransactionally(query, params, r -> r.resultAsString());
+        
         try(Transaction transaction = db.beginTx(5, TimeUnit.SECONDS)) {
             transaction.execute(query, params).resultAsString();
-            fail("Should fail because of TransactionFailureException");
-        } catch (QueryExecutionException | TransactionTerminatedException e) {
+//            System.out.println("s = " + s);
+            transaction.commit();
+            fail("Should fail because of TransactionFailureException");// todo - necessary this row?  fails with timeboxed
+        } catch (Exception e) {
+            final Throwable rootCause = ExceptionUtils.getRootCause(e);
+            System.out.println("TransactionTestUtil.checkTerminationGuard");
             final String expected = "The transaction has been terminated. " +
                     "Retry your operation in a new transaction, and you should see a successful result. Explicitly terminated by the user. ";
-            assertEquals(expected, e.getMessage());
+            assertEquals(expected, rootCause.getMessage());
         }
         
         checkTransactionNotInList(db, query);
