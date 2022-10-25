@@ -305,15 +305,15 @@ public class MultiStatementCypherSubGraphExporter {
                         return null;  // delegate to the constraint creation
                     }
 //                    final boolean isNode = "NODE".equals(map.get("entityType"));
-                    final Set<String> setTokens = Set.copyOf(tokenNames);
-                    
-                    // nodes --> 
-
-                    final List<String> propKeys = Iterables.asList(props);
-                    if (isNodeIndex && !isSchemaValid(setTokens, propKeys) 
-                            || !isRelSchemaValid(setTokens, propKeys)) {
-                        return null;
-                    }
+//                    final Set<String> setTokens = Set.copyOf(tokenNames);
+//                    
+//                    // nodes --> 
+//
+//                    final List<String> propKeys = Iterables.asList(props);
+//                    if (isNodeIndex && !isSchemaValid(setTokens, propKeys) 
+//                            || !isRelSchemaValid(setTokens, propKeys)) {
+//                        return null;
+//                    }
 
                     if (indexType == IndexType.FULLTEXT) {
                         if (isNodeIndex) {
@@ -429,11 +429,11 @@ public class MultiStatementCypherSubGraphExporter {
             Set<String> props = StreamSupport
                     .stream(indexDefinition.getPropertyKeys().spliterator(), false)
                     .collect(Collectors.toSet());
-            final List<String> propsList = List.copyOf(props);
-            if (indexDefinition.isNodeIndex() && !isSchemaValid(label, propsList)/*this.labelMatcher.isMatchedSchema(propsList, label)*/
-                    || !isRelSchemaValid(label, propsList)) {
-                continue;
-            }
+//            final List<String> propsList = List.copyOf(props);
+//            if (indexDefinition.isNodeIndex() && !isSchemaValid(label, propsList)/*this.labelMatcher.isMatchedSchema(propsList, label)*/
+//                    || !isRelSchemaValid(label, propsList)) {
+//                continue;
+//            }
             indexNames.add(indexDefinition.getName());
             indexedProperties.addAll(props);
             if (indexDefinition.isConstraintIndex()) { // we use the constraint that have few properties

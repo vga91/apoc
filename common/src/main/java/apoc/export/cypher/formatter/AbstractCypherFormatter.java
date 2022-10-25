@@ -204,12 +204,7 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 		Function<Node, Map.Entry<Set<String>, Set<String>>> keyMapper = (node) -> {
 			Set<String> labels = getLabels(node);
 
-			if (!isNodeValid(exportConfig, labels, Iterables.asList(node.getPropertyKeys()))) {
-				return nullEntry;
-			}
-//			node.getPropertyKeys();
-			
-//			if (!labelMatcher.matchesLabels(node, true)) {
+//			if (!isNodeValid(exportConfig, labels, Iterables.asList(node.getPropertyKeys()))) {
 //				return nullEntry;
 //			}
 			try (Transaction tx = db.beginTx()) {
@@ -326,9 +321,9 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 		Function<Relationship, Map<String, Object>> keyMapper = (rel) -> {
 			// define the type
 			String type = rel.getType().name();
-			if (isRelValid(exportConfig, type, Iterables.asList(rel.getPropertyKeys()))) {
-				return Collections.emptyMap();
-			}
+//			if (isRelValid(exportConfig, type, Iterables.asList(rel.getPropertyKeys()))) {
+//				return Collections.emptyMap();
+//			}
 			try (Transaction tx = db.beginTx()) {
 				rel = tx.getRelationshipById(rel.getId());
 				Node start = rel.getStartNode();
