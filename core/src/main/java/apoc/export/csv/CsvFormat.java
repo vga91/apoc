@@ -49,15 +49,13 @@ import static apoc.util.Util.joinLabels;
 public class CsvFormat implements Format {
     public static final String ID = "id";
     private final GraphDatabaseService db;
-    private final TerminationGuard terminationGuard;
     private boolean applyQuotesToAll = true;
 
     private static final String[] NODE_HEADER_FIXED_COLUMNS = {"_id:id", "_labels:label"};
     private static final String[] REL_HEADER_FIXED_COLUMNS = {"_start:id", "_end:id", "_type:label"};
 
-    public CsvFormat(GraphDatabaseService db, TerminationGuard terminationGuard) {
+    public CsvFormat(GraphDatabaseService db) {
         this.db = db;
-        this.terminationGuard = terminationGuard;
     }
 
     @Override

@@ -31,7 +31,8 @@ public class TransactionTestUtil {
         // todo 5, TimeUnit.SECONDS as parameter
         
 //        db.executeTransactionally(query, params, r -> r.resultAsString());
-        
+
+        final long l = System.currentTimeMillis();
         try(Transaction transaction = db.beginTx(5, TimeUnit.SECONDS)) {
             transaction.execute(query, params).resultAsString();
 //            System.out.println("s = " + s);
@@ -44,6 +45,8 @@ public class TransactionTestUtil {
                     "Retry your operation in a new transaction, and you should see a successful result. Explicitly terminated by the user. ";
             assertEquals(expected, rootCause.getMessage());
         }
+        final long l1 = System.currentTimeMillis() - l;
+        System.out.println("l - System.currentTimeMillis() = " + l1);
         
         checkTransactionNotInList(db, query);
     }

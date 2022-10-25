@@ -29,7 +29,6 @@ public class LoadJsonUtils {
                 return Stream.of(new MapResult((Map) value));
             }
             if (value instanceof List) {
-//                System.out.println("listone");
                 if (((List)value).isEmpty()) return Stream.empty();
                 if (((List) value).get(0) instanceof Map)
                     return ((List) value).stream().map((v) -> {

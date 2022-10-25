@@ -36,7 +36,6 @@ import static apoc.util.TestUtil.testCallEmpty;
 import static apoc.util.TestUtil.testFail;
 import static apoc.util.TestUtil.testResult;
 import static apoc.util.TransactionTestUtil.checkTerminationGuard;
-//import static apoc.util.TransactionTestUtil.terminateAndCheckTransaction;
 import static apoc.util.TransactionTestUtil.checkTransactionNotInList;
 import static apoc.util.TransactionTestUtil.terminateTransactionAsync;
 import static apoc.util.Util.map;
@@ -169,25 +168,21 @@ public class CypherTest {
     }
 
     @Test
-    // todo - document it,,,
-    public void testWithTermination1() {
-//        final String innerLongQuery = "CALL apoc.util.sleep(99999) RETURN 0";
-        final String query = "CALL apoc.cypher.runTimeboxed('CALL apoc.util.sleep(40000) RETURN 0', null, 99999)";
-        checkTerminationGuard(db, query);
-    }
-
-    @Test
     public void testWithTerminationInnerTransaction() {
-        final String innerLongQuery = "CALL apoc.util.sleep(99999) RETURN 0";
+        final String innerLongQuery = "CALL apoc.util.sleep(10999) RETURN 0";
         final String query = "CALL apoc.cypher.runTimeboxed($innerQuery, null, 99999)";
 
         terminateTransactionAsync(db, innerLongQuery);
+
+        final long l = System.currentTimeMillis();
         
         // assert query terminated (RETURN 0)
         TestUtil.testCall(db, query,
                 Map.of("innerQuery", innerLongQuery),
                 row -> assertEquals(Map.of("0", 0L), row.get("value")));
 
+        final long l1 = System.currentTimeMillis() - l;
+        System.out.println("l - System.currentTimeMillis() = " + l1);
         checkTransactionNotInList(db, query);
     }
 

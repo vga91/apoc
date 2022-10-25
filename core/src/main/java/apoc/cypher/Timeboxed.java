@@ -57,33 +57,16 @@ public class Timeboxed {
                 txAtomic.set(innerTx);
                 Result result = innerTx.execute(cypher, params == null ? Collections.EMPTY_MAP : params);
                 while (result.hasNext()) {
-                    System.out.println("Timeboxed.runTimeboxed1111");
                     if (Util.transactionIsTerminated(terminationGuard)) {
-                        System.out.println("uuuuuu");
-                        // todo - fare una cosa del genere anche per periodic e tutte le altre con innerTx
-//                        txAtomic.get().terminate();
                         txAtomic.get().close();
                         offerToQueue(queue, POISON, timeout);
-                        terminationGuard.check();
                         return;
                     }
 
-
                     final Map<String, Object> map = result.next();
-                    // todo - *NEXT (put the termination control??)
                     offerToQueue(queue, map, timeout);
                 }
-                // todo - *NEXT (put the termination control??)
                 offerToQueue(queue, POISON, timeout);
-                if (Util.transactionIsTerminated(terminationGuard)) {
-                    System.out.println("quaone");
-                    // todo - fare una cosa del genere anche per periodic e tutte le altre con innerTx
-//                    txAtomic.get().terminate();
-                    txAtomic.get().close();
-                    offerToQueue(queue, POISON, timeout);
-                    return;
-                }
-                System.out.println("result poison = ");
                 innerTx.commit();
             } catch (TransactionTerminatedException e) {
                 log.warn("query " + cypher + " has been terminated");
@@ -92,19 +75,13 @@ public class Timeboxed {
             }
         });
 
-
-        // todo  - some operations not allowed, maybe scheduleATFixedTask??? Or maybe put something in *NEXT, see above
-
         //
         pools.getScheduledExecutorService().schedule(() -> {
             Transaction tx = txAtomic.get();
             if (tx==null) {
-                System.out.println("tx = " + tx);
                 log.debug("tx is null, either the other transaction finished gracefully or has not yet been start.");
             } else {
-                System.out.println("tx1 = " + tx);
-//                tx.terminate();
-                tx.close();
+                tx.terminate();
                 offerToQueue(queue, POISON, timeout);
                 log.warn("terminating transaction, putting POISON onto queue");
             }
@@ -120,22 +97,6 @@ public class Timeboxed {
                 if (hasFinished) {
                     return false;
                 } else {
-                    System.out.println("Timeboxed.hasNext");
-//                    terminationGuard.check();
-                    if (Util.transactionIsTerminated(terminationGuard)) {
-                        System.out.println("is terminated here");
-                        // todo - fare una cosa del genere anche per periodic e tutte le altre con innerTx
-                        final Transaction transaction = txAtomic.get();
-//                        ((TransactionImpl) transaction).isOpen()
-//                        transaction.terminate();
-                        transaction.close();
-//                        throw new RuntimeException("aaaa");
-//                        offerToQueue(queue, POISON, timeout);
-                        offerToQueue(queue, POISON, timeout);
-                        System.out.println("sto qua");
-                        return false;
-                    }
-
                     try {
                         nextElement = queue.poll(timeout, MILLISECONDS);
                         if (nextElement == null) {

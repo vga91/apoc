@@ -67,18 +67,6 @@ public class Utils {
                 return;
             }
         }
-        /*
-                while (System.currentTimeMillis()-started < duration) {
-//            try {
-                Thread.sleep(5);
-                Util.transactionIsTerminated(terminationGuard, true);
-//                System.out.println("started = " + started);
-//            } catch (TransactionTerminatedException e) {
-//                System.out.println("sleep error e = " + e);
-//                return;
-//            }
-        }
-         */
     }
 
     @Procedure

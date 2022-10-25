@@ -16,7 +16,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.neo4j.configuration.GraphDatabaseSettings;
 import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Relationship;
 import org.neo4j.test.rule.DbmsRule;
 import org.neo4j.test.rule.ImpermanentDbmsRule;
 
@@ -29,12 +28,11 @@ import java.util.stream.IntStream;
 import static apoc.ApocConfig.APOC_EXPORT_FILE_ENABLED;
 import static apoc.ApocConfig.APOC_IMPORT_FILE_ENABLED;
 import static apoc.ApocConfig.apocConfig;
-import static apoc.util.TestUtil.testCall;
 import static apoc.util.TransactionTestUtil.checkTerminationGuard;
 import static org.neo4j.configuration.GraphDatabaseSettings.TransactionStateMemoryAllocation.OFF_HEAP;
 import static org.neo4j.configuration.SettingValueParsers.BYTES;
 
-public class ExportBigGraphTest {
+public class BigGraphTest {
     private static File directory = new File("target/import");
     static { //noinspection ResultOfMethodCallIgnored
         directory.mkdirs();
@@ -54,40 +52,26 @@ public class ExportBigGraphTest {
         apocConfig().setProperty(APOC_EXPORT_FILE_ENABLED, true);
 
         final String query = Util.readResourceFile("movies.cypher");
-        IntStream.range(0, 25000).forEach(__-> db.executeTransactionally(query));
-        
-        
-//        db.executeTransactionally("CREATE (f:User1:User {name:'foo',age:42,male:true,kids:['a','b','c']})-[:KNOWS]->(b:User {name:'bar',age:42}),(c:User {age:12})");
-//        db.executeTransactionally("CREATE (f:Address1:Address {name:'Andrea', city: 'Milano', street:'Via Garibaldi, 7'})-[:NEXT_DELIVERY]->(a:Address {name: 'Bar Sport'}), (b:Address {street: 'via Benni'})");
+        IntStream.range(0, 20000).forEach(__-> db.executeTransactionally(query));
     }
 
     @Test
-    public void testTerminateExportCsv() throws Exception {
-//                final long l = System.currentTimeMillis();
-//        testCall(db, "CALL apoc.export.csv.all('testTerminate1.csv',{})", r -> {
-//            System.out.println("r" + r.values());
-//        });
-//        System.out.println("time=" + (System.currentTimeMillis() - l));
-        
+    public void testTerminateExportCsv() {
         checkTerminationGuard(db, "CALL apoc.export.csv.all('testTerminate.csv',{})");
-        
     }
 
     @Test
-    public void testTerminateExportGraphMl() throws Exception {
+    public void testTerminateExportGraphMl() {
         checkTerminationGuard(db, "CALL apoc.export.graphml.all('testTerminate.graphml', null)");
     }
 
     @Test
-    public void testTerminateExportCypher() throws Exception {
-//        testCall(db, "CALL apoc.export.cypher.all('testTerminate.cypher',{})", r -> {
-//            System.out.println("r" + r.values());
-//        });
+    public void testTerminateExportCypher() {
         checkTerminationGuard(db, "CALL apoc.export.cypher.all('testTerminate.cypher',{})");
     }
 
     @Test
-    public void testTerminateExportJson() throws Exception {
+    public void testTerminateExportJson() {
         checkTerminationGuard(db, "CALL apoc.export.json.all('testTerminate.json',{})");
     }
 
@@ -97,22 +81,22 @@ public class ExportBigGraphTest {
     }
 
     @Test
-    public void testTerminateRenameTypeProp() throws Exception {
+    public void testTerminateRenameTypeProp() {
         checkTerminationGuard(db, "CALL apoc.refactor.rename.typeProperty('roles', 'rolesTwo')");
     }
 
     @Test
-    public void testTerminateRenameType() throws Exception {
+    public void testTerminateRenameType() {
         checkTerminationGuard(db, "CALL apoc.refactor.rename.type('DIRECTED', 'DIRECTED_TWO')");
     }
 
     @Test
-    public void testTerminateRenameLabel() throws Exception {
+    public void testTerminateRenameLabel() {
         checkTerminationGuard(db, "CALL apoc.refactor.rename.label('Other', 'OtherTwo')");
     }
 
     @Test
-    public void testTerminateCloneNodes() throws Exception {
+    public void testTerminateRefactorProcs() {
         List<Node> nodes = db.executeTransactionally("MATCH (n:Person) RETURN collect(n) as nodes", Collections.emptyMap(),
                 r -> r.<List<Node>>columnAs("nodes").next());
         

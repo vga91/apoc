@@ -100,7 +100,7 @@ public class ExportCSV {
         ProgressInfo progressInfo = new ProgressInfo(fileName, source, format);
         progressInfo.batchSize = exportConfig.getBatchSize();
         ProgressReporter reporter = new ProgressReporter(null, null, progressInfo);
-        CsvFormat exporter = new CsvFormat(db, terminationGuard);
+        CsvFormat exporter = new CsvFormat(db);
 
         ExportFileManager cypherFileManager = FileManagerFactory
                 .createFileManager(fileName, exportConfig.isBulkImport(), exportConfig);
