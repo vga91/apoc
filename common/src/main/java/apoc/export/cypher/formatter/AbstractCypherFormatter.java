@@ -5,6 +5,7 @@ import apoc.export.util.ExportFormat;
 import apoc.export.util.Reporter;
 import apoc.util.Util;
 import apoc.util.collection.Iterables;
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.GraphDatabaseService;
@@ -18,6 +19,7 @@ import java.io.PrintWriter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -147,24 +149,69 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 		result.append(";");
 		return result.toString();
 	}
+	
+	public static boolean isRelValid(ExportConfig exportConfig, String relType, List<String> propKeys) {
+		final Map<String, String> nodeWhitelist = exportConfig.getRelWhitelist();
+		if (nodeWhitelist.isEmpty()) {
+			final Map<String, String> nodeBlacklist = exportConfig.getRelBlacklist();
+			if (nodeBlacklist.isEmpty()) {
+				return true;
+			}
+			return nodeBlacklist.entrySet().stream().noneMatch(getEntryPredicateRel(relType, propKeys));
+		}
+		return nodeWhitelist.entrySet().stream().anyMatch(getEntryPredicateRel(relType, propKeys));
+	}
+	
+	public static boolean isNodeValid(ExportConfig exportConfig, Set<String> labels, List<String> propKeys) {
+		// todo - is null or empty
+		final Map<String, String> nodeWhitelist = exportConfig.getNodeWhitelist();
+		if (nodeWhitelist.isEmpty()) {
+			final Map<String, String> nodeBlacklist = exportConfig.getNodeBlacklist();
+			if (nodeBlacklist.isEmpty()) {
+				return true;
+			}
+			// todo - blacklist case
+			return nodeBlacklist.entrySet().stream().noneMatch(getEntryPredicate(labels, propKeys));
+		}
+		return nodeWhitelist.entrySet().stream().anyMatch(getEntryPredicate(labels, propKeys));
+		
+	}
+
+	private static Predicate<Map.Entry<String, String>> getEntryPredicate(Set<String> labels, List<String> propKeys) {
+		return i -> labels.contains(i.getKey()) && propKeys.contains(i.getValue());
+	}
+
+	private static Predicate<Map.Entry<String, String>> getEntryPredicateRel(String type, List<String> propKeys) {
+		return i -> type.equals(i.getKey()) && propKeys.contains(i.getValue());
+	}
+
+	private static boolean isaBoolean(Set<String> labels, List<String> propKeys, Map.Entry<String, String> i) {
+		return labels.contains(i.getKey()) && propKeys.contains(i.getValue());
+	}
 
 	public void buildStatementForNodes(String nodeClause, String setClause,
 									   Iterable<Node> nodes, Map<String, Set<String>> uniqueConstraints,
 									   ExportConfig exportConfig,
 									   PrintWriter out, Reporter reporter,
-									   GraphDatabaseService db) {
+									   GraphDatabaseService db/*,
+									   LabelMatcher labelMatcher*/) {
 		AtomicInteger nodeCount = new AtomicInteger(0);
+		final AbstractMap.SimpleImmutableEntry<Set<String>, Set<String>> nullEntry = new AbstractMap.SimpleImmutableEntry<>(null, null);
 		Function<Node, Map.Entry<Set<String>, Set<String>>> keyMapper = (node) -> {
+			Set<String> labels = getLabels(node);
+
 			try (Transaction tx = db.beginTx()) {
 				node = tx.getNodeById(node.getId());
 				Set<String> idProperties = CypherFormatterUtils.getNodeIdProperties(node, uniqueConstraints).keySet();
-				Set<String> labels = getLabels(node);
+				
 				tx.commit();
 				return new AbstractMap.SimpleImmutableEntry<>(labels, idProperties);
 			}
 		};
+		
 		Map<Map.Entry<Set<String>, Set<String>>, List<Node>> groupedData = StreamSupport.stream(nodes.spliterator(), true)
 				.collect(Collectors.groupingByConcurrent(keyMapper));
+		groupedData.remove(nullEntry);
 
 		AtomicInteger propertiesCount = new AtomicInteger(0);
 
@@ -265,6 +312,8 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 		AtomicInteger relCount = new AtomicInteger(0);
 
 		Function<Relationship, Map<String, Object>> keyMapper = (rel) -> {
+			// define the type
+			String type = rel.getType().name();
 			try (Transaction tx = db.beginTx()) {
 				rel = tx.getRelationshipById(rel.getId());
 				Node start = rel.getStartNode();
@@ -274,8 +323,6 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 				Node end = rel.getEndNode();
 				Set<String> endLabels = getLabels(end);
 
-				// define the type
-				String type = rel.getType().name();
 
 				// create the path
 				Map<String, Object> key = Util.map("type", type,
@@ -288,6 +335,7 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 		};
 		Map<Map<String, Object>, List<Relationship>> groupedData = StreamSupport.stream(relationship.spliterator(), true)
 				.collect(Collectors.groupingByConcurrent(keyMapper));
+		groupedData.remove(Collections.emptyMap());
 
 		AtomicInteger propertiesCount = new AtomicInteger(0);
 		AtomicInteger batchCount = new AtomicInteger(0);

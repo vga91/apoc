@@ -30,6 +30,10 @@ public class ProgressReporter implements Reporter {
         this.progressInfo = progressInfo;
         this.batchSize = progressInfo.batchSize;
     }
+    
+    public void formatSource() {
+        this.progressInfo.source = String.format(this.progressInfo.source, this.progressInfo.nodes, this.progressInfo.relationships);
+    }
 
     public ProgressReporter withConsumer(Consumer<ProgressInfo> consumer) {
         this.consumer = consumer;
