@@ -6,7 +6,6 @@ import apoc.schema.Schemas;
 import apoc.util.BinaryTestUtil;
 import apoc.util.CompressionAlgo;
 import apoc.util.TestUtil;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -155,107 +154,6 @@ public class ExportCypherTest {
 
     // -- Whole file test -- //
     @Test
-    public void testExportAllCypherWithNodeWhiteList() throws Exception {
-        String fileName = "all.cypher";
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($fileName,{nodeFilter: ['-Bar'],  useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("fileName", fileName),
-                (r) -> assertResults(fileName, r, "database", 1L, 0L, 2L));
-        assertEquals(EXPECTED_NODES_WITH_NODE_FILTER + EXPECTED_SCHEMA_WITH_NODE_FILTER + EXPECTED_CLEAN_UP, readFile(fileName));
-    }
-    
-    @Test
-    public void testExportAllCypherWithNodeWhiteListAllLabels() throws Exception {
-        db.executeTransactionally("CREATE (f:Foo:Bar {name:'another', born:date('1990-10-30')})");
-        String fileName = "all.cypher";
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($fileName,{nodeFilter: ['--Bar'], useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("fileName", fileName),
-                (r) -> assertResults(fileName, r, "database", 2L, 0L, 4L));
-        assertEquals(EXPECTED_NODES_FILTER_BLACKLIST_STRICT + EXPECTED_SCHEMA + EXPECTED_CLEAN_UP, readFile(fileName));
-        
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($fileName,{nodeFilter: ['++Bar'], useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("fileName", fileName),
-                (r) -> assertResults(fileName, r, "database", 2L, 0L, 3L));
-        assertEquals(EXPECTED_NODES_FILTER_WHITELIST_STRICT + EXPECTED_SCHEMA + EXPECTED_CLEAN_UP, readFile(fileName));
-        
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($fileName,{nodeFilter: ['++Bar:Foo'], useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("fileName", fileName),
-                (r) -> assertResults(fileName, r, "database", 1L, 0L, 2L));
-        assertEquals(EXPECTED_NODES_FILTER_WHITELIST_COMPOUND + EXPECTED_SCHEMA + EXPECTED_CLEAN_UP, readFile(fileName));
-    }
-    
-    @Test
-    public void testExportAllCypherWithSchemaFilter() throws Exception {
-        db.executeTransactionally("CREATE CONSTRAINT baz_constraint ON (b:Baz) ASSERT b.name IS UNIQUE");
-        String fileName = "all.cypher";
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($fileName,{nodeFilter: ['-Baz'],  useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("fileName", fileName),
-                (r) -> {
-                    assertResults(fileName, r, "database", 3L, 1L, 6L);
-                });
-        assertEquals(EXPECTED_NEO4J_SHELL, readFile(fileName));
-        
-        db.executeTransactionally("DROP CONSTRAINT baz_constraint");
-    }
-    
-    @Test
-    public void testExportAllCypherWithFilter() throws Exception {
-        String fileName = "all.cypher";
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($fileName,{nodeFilter: ['+Foo{name=foo}'],  useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("fileName", fileName),
-                (r) -> assertResults(fileName, r, "database", 1L, 0L, 2L));
-        assertEquals(EXPECTED_NODES_WITH_NODE_FILTER + EXPECTED_SCHEMA_WITH_NODE_FILTER + EXPECTED_CLEAN_UP, readFile(fileName));
-    }
-    
-    @Test
-    public void testNodeMultiFilter() throws Exception {
-        String fileName = "all.cypher";
-        db.executeTransactionally("CREATE (:Foo {name:'foo', born:date('1999-10-10')})");
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($file,{nodeFilter: ['+Foo{+name & born>2018-01-01 & -notExistent}'], useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("file", fileName),
-                (r) -> assertResults(fileName, r, "database", 1L, 0L, 2L));
-        assertEquals(EXPECTED_NODES_WITH_NODE_FILTER + EXPECTED_SCHEMA_WITH_NODE_FILTER + EXPECTED_CLEAN_UP, readFile(fileName));
-        
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($file,{nodeFilter: ['+Foo{+name & born<2018-01-01 & -notExistent}'], useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("file", fileName),
-                (r) -> assertResults(fileName, r, "database", 1L, 0L, 2L));
-        assertEquals(EXPECTED_NODES_WITH_NODE_FILTER_DATE_LESS_THAN + EXPECTED_SCHEMA_WITH_NODE_FILTER + EXPECTED_CLEAN_UP, readFile(fileName));
-    }
-    
-    
-    @Test
-    public void testFilterWithWildcard() throws Exception {
-        String fileName = "all.cypher";
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($file,{nodeFilter: ['+*{-notExistent}'], useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("file", fileName),
-                (r) -> assertResults(fileName, r, "database", 3L, 1L, 6L));
-        assertEquals(EXPECTED_NEO4J_SHELL, readFile(fileName));
-
-        // include all nodes WITH property 'notExistent'
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($file,{nodeFilter: ['+*{+notExistent}'], useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("file", fileName),
-                (r) -> assertResults(fileName, r, "database", 0L, 0L, 0L));
-        assertEquals(StringUtils.EMPTY, readFile(fileName));
-    }
-    
-    @Test
-    public void testRelFilterWithOptimized() throws Exception {
-        String fileName = "all.cypher";
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($file,{relFilter: ['-KNOWS'], useOptimizations: { type: 'unwind_batch', unwindBatchSize: 2}, format: 'neo4j-shell'})",
-                map("file", fileName),
-                (r) -> assertResults(fileName, r, "database", 7L, 0L, 11L));
-        assertEquals(EXPECTED_SCHEMA_OPTIMIZED + EXPECTED_NODES_OPTIMIZED_BATCH_SIZE + "" + DROP_UNIQUE_OPTIMIZED, readFile(fileName));
-    }
-
-    @Test
-    public void testFilterNotMatched() throws Exception {
-        String fileName = "all.cypher";
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all($fileName,{nodeFilter: ['+NotExistent'],  useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
-                map("fileName", fileName),
-                (r) -> assertResults(fileName, r, "database", 0L, 0L, 0L));
-        assertEquals(StringUtils.EMPTY, readFile(fileName));
-    }
-
-    @Test
     public void testExportAllCypherDefault() throws Exception {
         String fileName = "all.cypher";
         TestUtil.testCall(db, "CALL apoc.export.cypher.all($fileName,{useOptimizations: { type: 'none'}, format: 'neo4j-shell'})",
@@ -390,16 +288,11 @@ public class ExportCypherTest {
     }
 
     private void assertResults(String fileName, Map<String, Object> r, final String source) {
-        assertResults(fileName, r, source, 3L, 1L, 6L);
-    }
-
-    private void assertResults(String fileName, Map<String, Object> r, final String source,
-                               long expectedNodes, long expectedRels, long expectedProps) {
-        assertEquals(expectedNodes, r.get("nodes"));
-        assertEquals(expectedRels, r.get("relationships"));
-        assertEquals(expectedProps, r.get("properties"));
+        assertEquals(3L, r.get("nodes"));
+        assertEquals(1L, r.get("relationships"));
+        assertEquals(6L, r.get("properties"));
         assertEquals(fileName, r.get("file"));
-        assertEquals(String.format(source + ": nodes(%s), rels(%s)", expectedNodes, expectedRels) , r.get("source"));
+        assertEquals(source + ": nodes(3), rels(1)", r.get("source"));
         assertEquals("cypher", r.get("format"));
         assertTrue("Should get time greater than 0",((long) r.get("time")) >= 0);
     }
@@ -1126,28 +1019,6 @@ public class ExportCypherTest {
                 "CREATE (:Bar:`UNIQUE IMPORT LABEL` {age:12, `UNIQUE IMPORT ID`:2});%n" +
                 "COMMIT%n");
 
-        static final String EXPECTED_NODES_WITH_NODE_FILTER = String.format("BEGIN%n" +
-                "CREATE (:Foo:`UNIQUE IMPORT LABEL` {born:date('2018-10-31'), name:\"foo\", `UNIQUE IMPORT ID`:0});%n" +
-                "COMMIT%n");
-
-        static final String EXPECTED_NODES_FILTER_BLACKLIST_STRICT = String.format("BEGIN%n" +
-                "CREATE (:Foo:`UNIQUE IMPORT LABEL` {born:date('2018-10-31'), name:\"foo\", `UNIQUE IMPORT ID`:0});%n" +
-                "CREATE (:Bar:Foo {born:date('1990-10-30'), name:\"another\"});%n" +
-                "COMMIT%n");
-
-        static final String EXPECTED_NODES_FILTER_WHITELIST_STRICT = String.format("BEGIN%n" +
-                "CREATE (:Bar {age:42, name:\"bar\"});%n" +
-                "CREATE (:Bar:`UNIQUE IMPORT LABEL` {age:12, `UNIQUE IMPORT ID`:2});%n" +
-                "COMMIT%n");
-
-        static final String EXPECTED_NODES_FILTER_WHITELIST_COMPOUND = String.format("BEGIN%n" +
-                "CREATE (:Bar:Foo {born:date('1990-10-30'), name:\"another\"});%n" +
-                "COMMIT%n");
-        
-        static final String EXPECTED_NODES_WITH_NODE_FILTER_DATE_LESS_THAN = String.format("BEGIN%n" +
-                "CREATE (:Foo:`UNIQUE IMPORT LABEL` {born:date('1999-10-10'), name:\"foo\", `UNIQUE IMPORT ID`:3});%n" +
-                "COMMIT%n");
-
         private static final String EXPECTED_NODES_MERGE = String.format("BEGIN%n" +
                 "MERGE (n:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`:0}) SET n.name=\"foo\", n.born=date('2018-10-31'), n:Foo;%n" +
                 "MERGE (n:Bar{name:\"bar\"}) SET n.age=42;%n" +
@@ -1174,12 +1045,6 @@ public class ExportCypherTest {
                 "CREATE RANGE INDEX barIndex FOR (n:Bar) ON (n.first_name, n.last_name);%n" +
                 "CREATE RANGE INDEX fooIndex FOR (n:Foo) ON (n.name);%n" +
                 EXPECTED_CONSTRAINTS_AND_AWAIT);
-
-        static final String EXPECTED_SCHEMA_WITH_NODE_FILTER = String.format("BEGIN%n" +
-                "CREATE INDEX ON :Foo(name);%n" +
-                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
-                "COMMIT%n" +
-                "SCHEMA AWAIT%n");
 
         static final String EXPECTED_SCHEMA_EMPTY = String.format("BEGIN%n" +
                 "COMMIT%n" +

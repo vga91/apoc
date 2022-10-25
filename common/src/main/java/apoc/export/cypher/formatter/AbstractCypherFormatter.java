@@ -3,8 +3,6 @@ package apoc.export.cypher.formatter;
 import apoc.export.util.ExportConfig;
 import apoc.export.util.ExportFormat;
 import apoc.export.util.Reporter;
-import apoc.path.LabelMatcher;
-import apoc.path.RelMatcher;
 import apoc.util.Util;
 import apoc.util.collection.Iterables;
 import com.google.common.collect.ImmutableMap;
@@ -21,6 +19,7 @@ import java.io.PrintWriter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -150,23 +149,73 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 		result.append(";");
 		return result.toString();
 	}
+	
+	public static boolean isRelValid(ExportConfig exportConfig, String relType, List<String> propKeys) {
+		final Map<String, String> nodeWhitelist = exportConfig.getRelWhitelist();
+		if (nodeWhitelist.isEmpty()) {
+			final Map<String, String> nodeBlacklist = exportConfig.getRelBlacklist();
+			if (nodeBlacklist.isEmpty()) {
+				return true;
+			}
+			// todo - blacklist case
+			return nodeBlacklist.entrySet().stream().noneMatch(getEntryPredicateRel(relType, propKeys));
+		}
+//		boolean isOk = exportConfig.getNodeWhitelist().isEmpty() ||
+		return nodeWhitelist.entrySet().stream().anyMatch(getEntryPredicateRel(relType, propKeys));
+	}
+	
+	public static boolean isNodeValid(ExportConfig exportConfig, Set<String> labels, List<String> propKeys) {
+//		node.getLabels()
+		// todo - is null or empty
+		final Map<String, String> nodeWhitelist = exportConfig.getNodeWhitelist();
+		if (nodeWhitelist.isEmpty()) {
+			final Map<String, String> nodeBlacklist = exportConfig.getNodeBlacklist();
+			if (nodeBlacklist.isEmpty()) {
+				return true;
+			}
+			// todo - blacklist case
+			return nodeBlacklist.entrySet().stream().noneMatch(getEntryPredicate(labels, propKeys));
+		}
+//		boolean isOk = exportConfig.getNodeWhitelist().isEmpty() ||
+		return nodeWhitelist.entrySet().stream().anyMatch(getEntryPredicate(labels, propKeys));
+		
+	}
+
+	private static Predicate<Map.Entry<String, String>> getEntryPredicate(Set<String> labels, List<String> propKeys) {
+		return i -> labels.contains(i.getKey()) && propKeys.contains(i.getValue());
+	}
+
+	private static Predicate<Map.Entry<String, String>> getEntryPredicateRel(String type, List<String> propKeys) {
+		return i -> type.equals(i.getKey()) && propKeys.contains(i.getValue());
+	}
+
+	private static boolean isaBoolean(Set<String> labels, List<String> propKeys, Map.Entry<String, String> i) {
+		return labels.contains(i.getKey()) && propKeys.contains(i.getValue());
+	}
 
 	public void buildStatementForNodes(String nodeClause, String setClause,
 									   Iterable<Node> nodes, Map<String, Set<String>> uniqueConstraints,
 									   ExportConfig exportConfig,
 									   PrintWriter out, Reporter reporter,
-									   GraphDatabaseService db,
-									   LabelMatcher labelMatcher) {
+									   GraphDatabaseService db/*,
+									   LabelMatcher labelMatcher*/) {
 		AtomicInteger nodeCount = new AtomicInteger(0);
 		final AbstractMap.SimpleImmutableEntry<Set<String>, Set<String>> nullEntry = new AbstractMap.SimpleImmutableEntry<>(null, null);
 		Function<Node, Map.Entry<Set<String>, Set<String>>> keyMapper = (node) -> {
-			if (!labelMatcher.matchesLabels(node, true)) {
+			Set<String> labels = getLabels(node);
+
+			if (!isNodeValid(exportConfig, labels, Iterables.asList(node.getPropertyKeys()))) {
 				return nullEntry;
 			}
+//			node.getPropertyKeys();
+			
+//			if (!labelMatcher.matchesLabels(node, true)) {
+//				return nullEntry;
+//			}
 			try (Transaction tx = db.beginTx()) {
 				node = tx.getNodeById(node.getId());
 				Set<String> idProperties = CypherFormatterUtils.getNodeIdProperties(node, uniqueConstraints).keySet();
-				Set<String> labels = getLabels(node);
+				
 				tx.commit();
 				return new AbstractMap.SimpleImmutableEntry<>(labels, idProperties);
 			}
@@ -271,12 +320,13 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 											   String setClause, Iterable<Relationship> relationship,
 											   Map<String, Set<String>> uniqueConstraints, ExportConfig exportConfig,
 											   PrintWriter out, Reporter reporter,
-											   GraphDatabaseService db,
-											   RelMatcher relMatcher) {
+											   GraphDatabaseService db) {
 		AtomicInteger relCount = new AtomicInteger(0);
 
 		Function<Relationship, Map<String, Object>> keyMapper = (rel) -> {
-			if (!relMatcher.matchesRels(rel)) {
+			// define the type
+			String type = rel.getType().name();
+			if (isRelValid(exportConfig, type, Iterables.asList(rel.getPropertyKeys()))) {
 				return Collections.emptyMap();
 			}
 			try (Transaction tx = db.beginTx()) {
@@ -288,8 +338,6 @@ abstract class AbstractCypherFormatter implements CypherFormatter {
 				Node end = rel.getEndNode();
 				Set<String> endLabels = getLabels(end);
 
-				// define the type
-				String type = rel.getType().name();
 
 				// create the path
 				Map<String, Object> key = Util.map("type", type,

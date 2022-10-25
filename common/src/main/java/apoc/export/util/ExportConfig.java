@@ -69,8 +69,10 @@ public class ExportConfig extends CompressionConfig {
     private long awaitForIndexes;
     private final Map<String, Object> samplingConfig;
 
-    private final List<String> nodeFilter;
-    private final List<String> relFilter;
+    private final Map<String, String> nodeWhitelist;
+    private final Map<String, String> relWhitelist;
+    private final Map<String, String> nodeBlacklist;
+    private final Map<String, String> relBlacklist;
 
     public int getBatchSize() {
         return batchSize;
@@ -136,11 +138,13 @@ public class ExportConfig extends CompressionConfig {
         this.samplingConfig = (Map<String, Object>) config.getOrDefault("samplingConfig", new HashMap<>());
         this.unwindBatchSize = ((Number)getOptimizations().getOrDefault("unwindBatchSize", DEFAULT_UNWIND_BATCH_SIZE)).intValue();
         this.awaitForIndexes = ((Number)config.getOrDefault("awaitForIndexes", 300)).longValue();
-        this.nodeFilter = (List<String>) config.getOrDefault("nodeFilter", Collections.emptyList());
-        this.relFilter = (List<String>) config.getOrDefault("relFilter", Collections.emptyList());
         this.multipleRelationshipsWithType = toBoolean(config.get(RELS_WITH_TYPE_KEY));
         this.source = new NodeConfig((Map<String, String>) config.get("source"));
         this.target = new NodeConfig((Map<String, String>) config.get("target"));
+        this.nodeWhitelist = (Map<String, String>) config.getOrDefault("nodeWhitelist", Collections.emptyMap());
+        this.relWhitelist = (Map<String, String>) config.getOrDefault("relWhitelist", Collections.emptyMap());
+        this.nodeBlacklist = (Map<String, String>) config.getOrDefault("nodeBlacklist", Collections.emptyMap());
+        this.relBlacklist = (Map<String, String>) config.getOrDefault("relBlacklist", Collections.emptyMap());
         validate();
     }
 
@@ -250,14 +254,6 @@ public class ExportConfig extends CompressionConfig {
     public boolean isSampling() {
         return sampling;
     }
-
-    public List<String> getNodeFilter() {
-        return nodeFilter;
-    }
-
-    public List<String> getRelFilter() {
-        return relFilter;
-    }
     
     public boolean ifNotExists() {
         return ifNotExists;
@@ -265,5 +261,21 @@ public class ExportConfig extends CompressionConfig {
 
     public boolean shouldSaveIndexNames() {
         return saveIndexNames;
+    }
+
+    public Map<String, String> getNodeWhitelist() {
+        return nodeWhitelist;
+    }
+
+    public Map<String, String> getRelWhitelist() {
+        return relWhitelist;
+    }
+
+    public Map<String, String> getNodeBlacklist() {
+        return nodeBlacklist;
+    }
+
+    public Map<String, String> getRelBlacklist() {
+        return relBlacklist;
     }
 }

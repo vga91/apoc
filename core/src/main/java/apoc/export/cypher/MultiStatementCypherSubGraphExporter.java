@@ -15,7 +15,9 @@ import org.neo4j.graphdb.schema.IndexType;
 
 import java.io.PrintWriter;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static apoc.export.cypher.formatter.CypherFormatterUtils.UNIQUE_ID_LABEL;
@@ -67,6 +69,9 @@ public class MultiStatementCypherSubGraphExporter {
     private CypherFormatter cypherFormat;
     private ExportConfig exportConfig;
     private GraphDatabaseService db;
+    
+//    private List<Map<String, String>> nodeWhitelist;
+//    private List<Map<String, String>> nodeWhitelist;
 
     public MultiStatementCypherSubGraphExporter(SubGraph graph, ExportConfig config, GraphDatabaseService db) {
         this.graph = graph;
@@ -144,7 +149,7 @@ public class MultiStatementCypherSubGraphExporter {
 
     private void exportNodesUnwindBatch(PrintWriter out, Reporter reporter) {
         if (graph.getNodes().iterator().hasNext()) {
-            this.cypherFormat.statementForNodes(graph.getNodes(), uniqueConstraints, exportConfig, out, reporter, db, labelMatcher);
+            this.cypherFormat.statementForNodes(graph.getNodes(), uniqueConstraints, exportConfig, out, reporter, db);
             this.cypherFormat.statementForNodes(graph.getNodes(), uniqueConstraints, exportConfig, out, reporter, db);
             out.flush();
         }
@@ -235,6 +240,43 @@ public class MultiStatementCypherSubGraphExporter {
         out.flush();
     }
 
+//    public static boolean isNodeValid(ExportConfig exportConfig, Set<String> labels, List<String> propKeys) {
+//        final Map<String, String> nodeWhitelist = exportConfig.getNodeWhitelist();
+//        if (nodeWhitelist.isEmpty()) {
+//            return true;
+//        }
+//    }
+    
+    private boolean isSchemaValid(Set<String> setTokens, List<String> propKeys) {
+        final Map<String, String> nodeWhitelist = exportConfig.getNodeWhitelist();
+        if (nodeWhitelist.isEmpty()) {
+            final Map<String, String> nodeBlacklist = exportConfig.getNodeBlacklist();
+            if (nodeBlacklist.isEmpty()) {
+                return true;
+            }
+            return nodeBlacklist.entrySet().stream().allMatch(getEntryPredicate(setTokens, propKeys));
+        }
+        return nodeWhitelist.entrySet().stream().anyMatch(getEntryPredicate(setTokens, propKeys));
+    }
+    
+    private boolean isRelSchemaValid(Set<String> setTokens, List<String> propKeys) {
+        final Map<String, String> nodeWhitelist = exportConfig.getRelWhitelist();
+        if (nodeWhitelist.isEmpty()) {
+            final Map<String, String> nodeBlacklist = exportConfig.getRelBlacklist();
+            if (nodeBlacklist.isEmpty()) {
+                return true;
+            }
+            final Stream<Map.Entry<String, String>> stream = nodeBlacklist.entrySet().stream();
+            return stream.allMatch(getEntryPredicate(setTokens, propKeys));
+        }
+        return nodeWhitelist.entrySet().stream().anyMatch(getEntryPredicate(setTokens, propKeys));
+    }
+    
+
+    private static Predicate<Map.Entry<String, String>> getEntryPredicate(Set<String> labels, List<String> propKeys) {
+        return i -> labels.contains(i.getKey()) && propKeys.contains(i.getValue());
+    }
+
     private List<String> exportIndexes() {
         return StreamSupport.stream(graph.getIndexes().spliterator(), false)
                 .map(index -> {
@@ -262,11 +304,14 @@ public class MultiStatementCypherSubGraphExporter {
                     if (index.isConstraintIndex()) {
                         return null;  // delegate to the constraint creation
                     }
-                    final boolean isNode = "NODE".equals(map.get("entityType"));
+//                    final boolean isNode = "NODE".equals(map.get("entityType"));
                     final Set<String> setTokens = Set.copyOf(tokenNames);
                     
-                    if (isNode && !this.labelMatcher.isMatchedSchema(props, setTokens) 
-                            || !this.relMatcher.isMatchedSchema(props, setTokens)) {
+                    // nodes --> 
+
+                    final List<String> propKeys = Iterables.asList(props);
+                    if (isNodeIndex && !isSchemaValid(setTokens, propKeys) 
+                            || !isRelSchemaValid(setTokens, propKeys)) {
                         return null;
                     }
 
@@ -319,6 +364,9 @@ public class MultiStatementCypherSubGraphExporter {
                     String name = index.getName();
                     String label = Iterables.single(index.getLabels()).name();
                     Iterable<String> props = index.getPropertyKeys();
+                    
+                    // todo - here...
+                    
                     return this.cypherFormat.statementForCreateConstraint(name, label, props, exportConfig.ifNotExists());
                 })
                 .filter(StringUtils::isNotBlank)
@@ -382,8 +430,8 @@ public class MultiStatementCypherSubGraphExporter {
                     .stream(indexDefinition.getPropertyKeys().spliterator(), false)
                     .collect(Collectors.toSet());
             final List<String> propsList = List.copyOf(props);
-            if (indexDefinition.isNodeIndex() && !this.labelMatcher.isMatchedSchema(propsList, label)
-                    || !this.relMatcher.isMatchedSchema(propsList, label)) {
+            if (indexDefinition.isNodeIndex() && !isSchemaValid(label, propsList)/*this.labelMatcher.isMatchedSchema(propsList, label)*/
+                    || !isRelSchemaValid(label, propsList)) {
                 continue;
             }
             indexNames.add(indexDefinition.getName());
