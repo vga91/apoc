@@ -9,6 +9,7 @@ import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Description;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
+import org.neo4j.procedure.TerminationGuard;
 
 import java.util.Collections;
 import java.util.List;
@@ -25,6 +26,9 @@ public class LoadJson {
 
     @Context
     public GraphDatabaseService db;
+
+    @Context
+    public TerminationGuard terminationGuard;
 
     @SuppressWarnings("unchecked")
     @Procedure("apoc.load.jsonArray")
@@ -58,7 +62,7 @@ public class LoadJson {
         boolean failOnError = (boolean) config.getOrDefault("failOnError", true);
         String compressionAlgo = (String) config.getOrDefault(COMPRESSION, CompressionAlgo.NONE.name());
         List<String> pathOptions = (List<String>) config.get("pathOptions");
-        return loadJsonStream(urlOrKeyOrBinary, headers, payload, path, failOnError, compressionAlgo, pathOptions);
+        return loadJsonStream(urlOrKeyOrBinary, headers, payload, path, failOnError, compressionAlgo, pathOptions, terminationGuard);
     }
 
 }
