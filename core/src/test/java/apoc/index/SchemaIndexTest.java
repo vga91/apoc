@@ -9,6 +9,7 @@ import org.neo4j.graphdb.Transaction;
 import org.neo4j.test.rule.DbmsRule;
 import org.neo4j.test.rule.ImpermanentDbmsRule;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -69,6 +70,74 @@ SchemaIndexTest {
                 map("label", "Person","key", "name"),
                 (row) -> assertEquals(new HashSet<>(personNames), new HashSet<>((Collection<String>) row.get("value")))
         );
+    }
+
+
+    @Test
+    public void testDistinctShouldNotHangs() throws Exception {
+        db.executeTransactionally("CREATE FULLTEXT INDEX FOR (n:Label1) ON EACH [n.prop1]");
+        db.executeTransactionally("CALL apoc.schema.properties.distinct($label, $key)",
+//                map("label", "Person","key", "address"),
+                map("label", "Label1","key", "prop1"),
+                r -> r.resultAsString(),
+                Duration.ofSeconds(10));
+//        try(Transaction transaction = db.beginTx(10, TimeUnit.SECONDS)) {
+//            transaction.execute("CALL apoc.schema.properties.distinct($label, $key)",
+//                    map("label", "Person","key", "address"));
+////                    map("label", "Label1","key", "prop1"));
+//            transaction.commit();
+//        }
+
+    }
+    
+
+    @Test
+    public void testDistinctShouldNotHangs3() throws Exception {
+        db.executeTransactionally("CREATE FULLTEXT INDEX FOR (n:Label1) ON EACH [n.prop1]");
+        db.executeTransactionally("CREATE (:Label1 {prop1: \"Michael\", prop2: 111});");
+        db.executeTransactionally("CREATE (:Label1 {prop1: \"AA\", prop2: 1});");
+        db.executeTransactionally("CREATE (:Label1 {prop1: \"EE\", prop2: 111});");
+        db.executeTransactionally("CREATE (:Label1 {prop1: \"Ryan\", prop2: 1});");
+        db.executeTransactionally("CREATE (:Label1 {prop1: \"UU\", prop2: 111});");
+        db.executeTransactionally("CREATE (:Label1 {prop1: \"Ryan\", prop2: 1});");
+        db.executeTransactionally("CALL db.awaitIndexes()");
+        final String s = db.executeTransactionally("CALL apoc.schema.properties.distinct($label, $key)",
+//                map("label", "Person","key", "address"),
+                map("label", "Label1", "key", "prop1"),
+                r -> r.resultAsString()
+        );
+        System.out.println("s = " + s);
+        final String s1 = db.executeTransactionally("CALL apoc.schema.properties.distinctCount($label, $key)",
+//                map("label", "Person","key", "address"),
+                map("label", "Label1", "key", "prop1"),
+                r -> r.resultAsString()
+        );
+        System.out.println("s1 = " + s1);
+//                Duration.ofSeconds(10));
+//        try(Transaction transaction = db.beginTx(10, TimeUnit.SECONDS)) {
+//            transaction.execute("CALL apoc.schema.properties.distinct($label, $key)",
+//                    map("label", "Person","key", "address"));
+////                    map("label", "Label1","key", "prop1"));
+//            transaction.commit();
+//        }
+
+    }
+    
+    @Test
+    public void testDistinctShouldNotHangs1() throws Exception {
+        db.executeTransactionally("CREATE FULLTEXT INDEX FOR (n:Label1|Label2) ON EACH [n.prop1]");
+        db.executeTransactionally("CALL apoc.schema.properties.distinct($label, $key)",
+//                map("label", "Person","key", "address"),
+                map("label", "Label1","key", "prop1"),
+                r -> r.resultAsString(),
+                Duration.ofSeconds(10));
+//        try(Transaction transaction = db.beginTx(10, TimeUnit.SECONDS)) {
+//            transaction.execute("CALL apoc.schema.properties.distinct($label, $key)",
+//                    map("label", "Person","key", "address"));
+////                    map("label", "Label1","key", "prop1"));
+//            transaction.commit();
+//        }
+
     }
 
     @Test
