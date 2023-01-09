@@ -17,6 +17,9 @@ import static apoc.util.MapUtil.map;
 import static apoc.util.TestUtil.*;
 import static org.junit.Assert.*;
 
+
+// TODO: https://stackoverflow.com/questions/35641902/how-can-i-mock-googles-geocoding-api-request-using-mockito-powermock
+
 public class GeocodeTest {
 
     @Rule
