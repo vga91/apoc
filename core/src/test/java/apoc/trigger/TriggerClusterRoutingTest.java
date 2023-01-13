@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static apoc.trigger.Trigger.SYS_DB_NON_WRITER_ERROR;
+import static apoc.trigger.TriggerNewProcedures.NON_SYS_DB_ERROR;
 import static apoc.trigger.TriggerNewProcedures.TRIGGER_NOT_ROUTED_ERROR;
 import static apoc.util.TestContainerUtil.testCall;
 import static org.junit.Assert.assertEquals;
@@ -71,7 +72,17 @@ public class TriggerClusterRoutingTest {
         triggerInSysLeaderMemberCommon(query, TRIGGER_NOT_ROUTED_ERROR, SYSTEM_DATABASE_NAME);
     }
 
+    @Test
+    public void testTriggerShowAllowedOnlyInSysLeaderMember() {
+        final String query = "CALL apoc.trigger.show('neo4j')";
+        triggerInSysLeaderMemberCommon(query, TRIGGER_NOT_ROUTED_ERROR, SYSTEM_DATABASE_NAME, true);
+    }
+
     private static void triggerInSysLeaderMemberCommon(String query, String triggerNotRoutedError, String dbName) {
+        triggerInSysLeaderMemberCommon(query, triggerNotRoutedError, dbName, false);
+    }
+
+    private static void triggerInSysLeaderMemberCommon(String query, String triggerNotRoutedError, String dbName, boolean nonWriteOperation) {
         final List<Neo4jContainerExtension> members = cluster.getClusterMembers();
         assertEquals(4, members.size());
         for (Neo4jContainerExtension container: members) {
@@ -82,12 +93,14 @@ public class TriggerClusterRoutingTest {
             }
             Session session = driver.session(SessionConfig.forDatabase(dbName));
             final String address = container.getEnvMap().get("NEO4J_dbms_connector_bolt_advertised__address");
-            if (dbIsWriter(session, SYSTEM_DATABASE_NAME, address)) {
+            if (nonWriteOperation || dbIsWriter(session, SYSTEM_DATABASE_NAME, address)) {
+                System.out.println("ISWRITER query = " + query + ", triggerNotRoutedError = " + triggerNotRoutedError + ", dbName = " + dbName);
                 final String name = UUID.randomUUID().toString();
                 testCall( session, query,
                         Map.of("name", name),
                         row -> assertEquals(name, row.get("name")) );
             } else {
+                System.out.println("ELSE ISWRITER query = " + query + ", triggerNotRoutedError = " + triggerNotRoutedError + ", dbName = " + dbName);
                 try {
                     testCall(session, query,
                             Map.of("name", UUID.randomUUID().toString()),
