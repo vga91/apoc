@@ -3,6 +3,7 @@ package apoc.trigger;
 import apoc.util.Neo4jContainerExtension;
 import apoc.util.TestContainerUtil;
 import apoc.util.TestcontainersCausalCluster;
+import com.opencsv.bean.function.AssignmentInvoker;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -14,11 +15,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static apoc.trigger.Trigger.SYS_DB_NON_WRITER_ERROR;
 import static apoc.trigger.TriggerNewProcedures.NON_SYS_DB_ERROR;
 import static apoc.trigger.TriggerNewProcedures.TRIGGER_NOT_ROUTED_ERROR;
 import static apoc.util.TestContainerUtil.testCall;
+import static apoc.util.TestContainerUtil.testCallEmpty;
+import static apoc.util.TestContainerUtil.testResult;
 import static org.junit.Assert.assertEquals;
 import static org.neo4j.configuration.GraphDatabaseSettings.DEFAULT_DATABASE_NAME;
 import static org.neo4j.configuration.GraphDatabaseSettings.SYSTEM_DATABASE_NAME;
@@ -75,14 +80,18 @@ public class TriggerClusterRoutingTest {
     @Test
     public void testTriggerShowAllowedOnlyInSysLeaderMember() {
         final String query = "CALL apoc.trigger.show('neo4j')";
-        triggerInSysLeaderMemberCommon(query, TRIGGER_NOT_ROUTED_ERROR, SYSTEM_DATABASE_NAME, true);
+        final BiConsumer<Session, String> testTrigger = (session, name) -> testCallEmpty(session, query, Collections.emptyMap());
+        triggerInSysLeaderMemberCommon(query, TRIGGER_NOT_ROUTED_ERROR, SYSTEM_DATABASE_NAME, true, testTrigger);
     }
 
     private static void triggerInSysLeaderMemberCommon(String query, String triggerNotRoutedError, String dbName) {
-        triggerInSysLeaderMemberCommon(query, triggerNotRoutedError, dbName, false);
+        final BiConsumer<Session, String> testTrigger = (session, name) -> testCall(session, query,
+                Map.of("name", name),
+                row -> assertEquals(name, row.get("name")));
+        triggerInSysLeaderMemberCommon(query, triggerNotRoutedError, dbName, false, testTrigger);
     }
 
-    private static void triggerInSysLeaderMemberCommon(String query, String triggerNotRoutedError, String dbName, boolean nonWriteOperation) {
+    private static void triggerInSysLeaderMemberCommon(String query, String triggerNotRoutedError, String dbName, boolean nonWriteOperation, BiConsumer<Session, String> testTrigger) {
         final List<Neo4jContainerExtension> members = cluster.getClusterMembers();
         assertEquals(4, members.size());
         for (Neo4jContainerExtension container: members) {
@@ -96,9 +105,10 @@ public class TriggerClusterRoutingTest {
             if (nonWriteOperation || dbIsWriter(session, SYSTEM_DATABASE_NAME, address)) {
                 System.out.println("ISWRITER query = " + query + ", triggerNotRoutedError = " + triggerNotRoutedError + ", dbName = " + dbName);
                 final String name = UUID.randomUUID().toString();
-                testCall( session, query,
-                        Map.of("name", name),
-                        row -> assertEquals(name, row.get("name")) );
+                testTrigger.accept(session, name);
+//                testCall( session, query,
+//                        Map.of("name", name),
+//                        row -> assertEquals(name, row.get("name")) );
             } else {
                 System.out.println("ELSE ISWRITER query = " + query + ", triggerNotRoutedError = " + triggerNotRoutedError + ", dbName = " + dbName);
                 try {
@@ -117,6 +127,10 @@ public class TriggerClusterRoutingTest {
     private static Driver getDriverIfNotReplica(Neo4jContainerExtension container) {
         final String readReplica = TestcontainersCausalCluster.ClusterInstanceType.READ_REPLICA.toString();
         final Driver driver = container.getDriver();
+        if (driver != null) {
+            System.out.println("driver.session() = " + driver.session());
+        }
+        System.out.println("container.getEnvMap().get(\"NEO4J_dbms_mode\")) = " + container.getEnvMap().get("NEO4J_dbms_mode"));
         if (readReplica.equals(container.getEnvMap().get("NEO4J_dbms_mode")) || driver == null) {
             return null;
         }

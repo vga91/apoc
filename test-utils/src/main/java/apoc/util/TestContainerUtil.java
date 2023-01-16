@@ -9,6 +9,7 @@ import org.gradle.tooling.GradleConnector;
 import org.gradle.tooling.ProjectConnection;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Session;
+import org.neo4j.graphdb.GraphDatabaseService;
 import org.testcontainers.containers.ContainerFetchException;
 import org.testcontainers.utility.MountableFile;
 
@@ -218,6 +219,10 @@ public class TestContainerUtil {
             tx.commit();
             return null;
         });
+    }
+
+    public static void testCallEmpty(Session session, String call, Map<String,Object> params) {
+        testResult(session, call, params, (res) -> assertFalse("Expected no results", res.hasNext()) );
     }
 
     public static void testCallInReadTransaction(Session session, String call, Consumer<Map<String, Object>> consumer) {

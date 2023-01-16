@@ -123,6 +123,8 @@ public class TestcontainersCausalCluster {
                 .withNeo4jConfig("causal_clustering.initial_discovery_members", initialDiscoveryMembers)
                 .withStartupTimeout(Duration.ofMinutes(MINUTES_TO_WAIT));
         if (withRoutingEnabled(envSettings)) {
+            System.out.println("name = " + name);
+            System.out.println("instanceType = " + instanceType);
             container.withEnv("NEO4J_dbms_routing_listen__address", "0.0.0.0:7618")
                     .withEnv("NEO4J_dbms_routing_default__router", "SERVER")
                     .withEnv("NEO4J_dbms_routing_advertised__address", name + ":7618");
