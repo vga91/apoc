@@ -2,7 +2,10 @@ package apoc.spatial;
 
 import apoc.util.JsonUtil;
 import apoc.util.TestUtil;
+import inet.ipaddr.IPAddressString;
 import org.junit.*;
+import org.neo4j.configuration.GraphDatabaseInternalSettings;
+import org.neo4j.graphdb.QueryExecutionException;
 import org.neo4j.test.rule.DbmsRule;
 import org.neo4j.test.rule.ImpermanentDbmsRule;
 
@@ -19,8 +22,11 @@ import static org.junit.Assert.*;
 
 public class GeocodeTest {
 
+    private static final String BLOCKED_ADDRESS = "127.168.0.0";
+    
     @Rule
-    public DbmsRule db = new ImpermanentDbmsRule();
+    public DbmsRule db = new ImpermanentDbmsRule()
+            .withSetting(GraphDatabaseInternalSettings.cypher_ip_blocklist, List.of(new IPAddressString(BLOCKED_ADDRESS)));
 
     @Before
     public void initDb() {
@@ -36,6 +42,57 @@ public class GeocodeTest {
     }
     
     // -- with apoc config
+    @Test
+    public void testGeocodeWithBlockedAddress() {
+        String nonBlockedAddress = "123.456.7.8";
+        String blockedError = "access to /" + BLOCKED_ADDRESS + " is blocked via the configuration property internal.dbms.cypher_ip_blocklist";
+        String sockedTimeoutError = "java.net.SocketTimeoutException: Connect timed out";
+        Stream.of("https", "http", "ftp").forEach(protocol -> {
+
+            final String url = protocol + "://%s/geocode/v1/json?q=PLACE&key=KEY";
+            final String reverseUrl = protocol + "://%s/geocode/v1/json?q=LAT+LNG&key=KEY";
+            
+            final String nonBlockedUrl = String.format(url, nonBlockedAddress);
+            final String nonBlockedReverseUrl = String.format(reverseUrl, nonBlockedAddress);
+
+            // check that if url address is blocked 
+            // the apoc.spatial.geocode procedure fails
+            assertGeocodeFails(nonBlockedUrl,
+                    String.format(reverseUrl, BLOCKED_ADDRESS),
+                    true,
+                    blockedError);
+
+            assertGeocodeFails(String.format(url, BLOCKED_ADDRESS),
+                    nonBlockedReverseUrl,
+                    false,
+                    blockedError);
+
+            // check that if neither url nor reverse url are blocked 
+            // the procedures continue the execution (in this case by throwing a SocketTimeoutException)
+            assertGeocodeFails(nonBlockedUrl,
+                    nonBlockedReverseUrl,
+                    false,
+                    sockedTimeoutError);
+            
+            assertGeocodeFails(nonBlockedUrl,
+                    nonBlockedReverseUrl,
+                    true,
+                    sockedTimeoutError);
+        });
+    }
+
+    private void assertGeocodeFails(String url, String reverseUrl, boolean reverseGeocode, String expectedMsgError) {
+        QueryExecutionException e = assertThrows(QueryExecutionException.class,
+                    () -> testGeocodeWithThrottling("opencage", reverseGeocode, 
+                            Map.of("key", "myOwnKey", 
+                                    "url", url, 
+                                    "reverseUrl", reverseUrl)
+                    ));
+
+        final String actualMsgErr = e.getMessage();
+        assertTrue("Actual err. message is " + actualMsgErr, actualMsgErr.contains(expectedMsgError));
+    }
+
     @Test
     public void testGeocodeOSM() throws Exception {
         testGeocodeWithThrottling("osm", false);
