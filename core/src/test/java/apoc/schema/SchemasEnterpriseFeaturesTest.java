@@ -5,6 +5,7 @@ import apoc.util.Neo4jContainerExtension;
 import apoc.util.TestContainerUtil.ApocPackage;
 import junit.framework.TestCase;
 import org.apache.commons.lang3.StringUtils;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -108,6 +109,41 @@ public class SchemasEnterpriseFeaturesTest {
             tx.commit();
             return null;
         });
+    }
+
+    @Test
+    public void testSchemaNodesWithNodeKey() {
+        session.writeTransaction(tx -> {
+            tx.run("CREATE CONSTRAINT node_key_movie FOR (m:Movie) REQUIRE (m.first, m.second) IS NODE KEY");
+            tx.commit();
+            return null;
+        });
+
+        testResult(session, "CALL apoc.schema.nodes() " +
+                "YIELD label, properties, name, userDescription, type, status " +
+                "RETURN * ORDER BY type", (result) -> {
+            Map<String, Object> r = result.next();
+            schemaNodeKeyAssertions(r);
+            assertEquals("", r.get("status"));
+            final String expectedUserDescConstraint = "name='node_key_movie', type='NODE KEY', schema=(:Movie {first, second}), ownedIndex=11 )";
+            Assertions.assertThat(r.get("userDescription").toString()).contains(expectedUserDescConstraint);
+            assertEquals("NODE_KEY", r.get("type"));
+
+            r = result.next();
+            schemaNodeKeyAssertions(r);
+            assertEquals("ONLINE", r.get("status"));
+            assertEquals("RANGE", r.get("type"));
+            final String expectedUserDescIdx = "name='node_key_movie', type='RANGE', schema=(:Movie {first, second}), indexProvider='range-1.0', owningConstraint=12";
+            Assertions.assertThat(r.get("userDescription").toString()).contains(expectedUserDescIdx);
+            
+            assertFalse(result.hasNext());
+        });
+    }
+
+    private static void schemaNodeKeyAssertions(Map<String, Object> r) {
+        assertEquals("Movie", r.get("label"));
+        assertEquals(List.of("first", "second"), r.get("properties"));
+        assertEquals(":Movie(first,second)", r.get("name"));
     }
 
 
