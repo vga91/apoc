@@ -15,16 +15,18 @@ public class SensitivePathGenerator {
     /**
      * It will return an instance of Pair<String, String> where first is the relative path
      * and other the absolute path of "etc/passwd"
-     * @param db
+//     * @param db
      * @return
      */
-    public static Pair<String, String> etcPasswd(GraphDatabaseAPI db) {
-        return base(db, "/etc/passwd");
+    public static Pair<String, String> etcPasswd(/*GraphDatabaseAPI db*/) {
+        return base(/*db, */"/etc/passwd");
     }
+// todo - ??? cambiarlo forse???
+    private static Pair<String, String> base(/*GraphDatabaseAPI db, */String path) {
+//        final Path dbPath = db.databaseLayout().databaseDirectory();
 
-    private static Pair<String, String> base(GraphDatabaseAPI db, String path) {
-        final Path dbPath = db.databaseLayout().databaseDirectory();
-        final String relativeFileName = IntStream.range(0, dbPath.getNameCount())
+        // if the project located in a subfolder, doesn't work
+        final String relativeFileName = IntStream.range(0, Paths.get("").toAbsolutePath().getNameCount())
                 .mapToObj(i -> "..")
                 .collect(Collectors.joining("/")) + path;
         final String absoluteFileName = Paths.get(relativeFileName)

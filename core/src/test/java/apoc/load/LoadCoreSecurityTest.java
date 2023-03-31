@@ -1,6 +1,7 @@
 package apoc.load;
 
 import apoc.ApocConfig;
+import apoc.util.FileTestUtil;
 import apoc.util.FileUtils;
 import apoc.util.SensitivePathGenerator;
 import apoc.util.TestUtil;
@@ -29,28 +30,20 @@ import java.util.stream.Collectors;
 import static apoc.ApocConfig.APOC_IMPORT_FILE_ENABLED;
 import static apoc.ApocConfig.apocConfig;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+
+// todo - creare base test con ImportSecurityTest
 @RunWith(Enclosed.class)
-public class LoadCoreSecurityTest {
-
-    public static Path import_folder;
-
-    static {
-        try {
-            import_folder = File.createTempFile(UUID.randomUUID().toString(), "tmp")
-                    .getParentFile().toPath();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+public class LoadCoreSecurityTest extends SecurityBaseTest {
 
     @ClassRule
     public static DbmsRule db = new ImpermanentDbmsRule()
             .withSetting(GraphDatabaseSettings.load_csv_file_url_root, import_folder);
 
     @BeforeClass
-    public static void setUp() {
+    public static void setUp() throws Exception {
         TestUtil.registerProcedure(db, LoadJson.class, Xml.class);
         apocConfig().setProperty(APOC_IMPORT_FILE_ENABLED, false);
     }
@@ -67,12 +60,8 @@ public class LoadCoreSecurityTest {
             "jsonParams", JsonParseException.class,
             "xml", SAXParseException.class);
 
-
     private static Collection<String[]> data() {
-        return APOC_PROCEDURE_WITH_ARGUMENTS.entrySet()
-                .stream()
-                .flatMap(e -> e.getValue().stream().map(arg -> new String[]{e.getKey(), arg}))
-                .collect(Collectors.toList());
+        return SecurityBaseTest.data(APOC_PROCEDURE_WITH_ARGUMENTS);
     }
 
     @RunWith(Parameterized.class)
@@ -100,14 +89,14 @@ public class LoadCoreSecurityTest {
                         Result::resultAsString);
                 fail(message);
             } catch (Exception e) {
-                TestUtil.assertError(e, ApocConfig.LOAD_FROM_FILE_ERROR, RuntimeException.class, apocProcedure);
+                assertError(e, ApocConfig.LOAD_FROM_FILE_ERROR, RuntimeException.class, apocProcedure);
             }
         }
 
         @Test
         public void testIllegalFSAccessWithImportEnabled() {
             final String message = apocProcedure + " should throw an exception";
-            final String fileName = SensitivePathGenerator.etcPasswd(db).getLeft();
+
             ApocConfig.apocConfig().setProperty(ApocConfig.APOC_IMPORT_FILE_ENABLED, true);
             ApocConfig.apocConfig().setProperty(ApocConfig.APOC_IMPORT_FILE_USE_NEO4J_CONFIG, true);
             ApocConfig.apocConfig().setProperty(ApocConfig.APOC_IMPORT_FILE_ALLOW__READ__FROM__FILESYSTEM, false);
@@ -117,7 +106,7 @@ public class LoadCoreSecurityTest {
                         Result::resultAsString);
                 fail(message);
             } catch (Exception e) {
-                TestUtil.assertError(e, String.format(FileUtils.ERROR_READ_FROM_FS_NOT_ALLOWED, fileName), RuntimeException.class, apocProcedure);
+                assertError(e, String.format(FileUtils.ERROR_READ_FROM_FS_NOT_ALLOWED, fileName), RuntimeException.class, apocProcedure);
             }
         }
 
@@ -125,7 +114,7 @@ public class LoadCoreSecurityTest {
         public void testReadSensitiveFileWorks() {
             // as we're defining ApocConfig.APOC_IMPORT_FILE_ALLOW__READ__FROM__FILESYSTEM to true
             // and ApocConfig.APOC_IMPORT_FILE_ALLOW__READ__FROM__FILESYSTEM to false the next call should work
-            final String fileName = SensitivePathGenerator.etcPasswd(db).getLeft();
+
             ApocConfig.apocConfig().setProperty(ApocConfig.APOC_IMPORT_FILE_ENABLED, true);
             ApocConfig.apocConfig().setProperty(ApocConfig.APOC_IMPORT_FILE_USE_NEO4J_CONFIG, false);
             ApocConfig.apocConfig().setProperty(ApocConfig.APOC_IMPORT_FILE_ALLOW__READ__FROM__FILESYSTEM, true);
@@ -143,4 +132,11 @@ public class LoadCoreSecurityTest {
             }
         }
     }
+
+    private static void assertError(Exception e, String errorMessage, Class<? extends Exception> exceptionType, String apocProcedure) {
+        final Throwable rootCause = ExceptionUtils.getRootCause(e);
+        assertTrue(apocProcedure + " should throw an instance of " + exceptionType.getSimpleName(), exceptionType.isInstance(rootCause));
+        assertEquals(apocProcedure + " should throw the following message", errorMessage, rootCause.getMessage());
+    }
+
 }

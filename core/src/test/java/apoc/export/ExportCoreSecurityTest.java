@@ -58,12 +58,12 @@ public class ExportCoreSecurityTest {
         TestUtil.registerProcedure(db, ExportCSV.class, ExportJson.class, ExportGraphML.class, ExportCypher.class);
         setFileExport(false);
     }
-
+// todo - in FileTestUtil??
     private static void setFileExport(boolean allowed) {
         ApocConfig.apocConfig().setProperty(ApocConfig.APOC_EXPORT_FILE_ENABLED, allowed);
     }
 
-    private static Collection<String[]> data(Map<String, List<String>> apocProcedureArguments) {
+    public static Collection<String[]> data(String prefix, Map<String, List<String>> apocProcedureArguments) {
         return APOC_EXPORT_PROCEDURE_NAME
                 .stream()
                 .flatMap(method -> apocProcedureArguments
@@ -71,8 +71,12 @@ public class ExportCoreSecurityTest {
                         .stream()
                         .flatMap(e -> e.getValue()
                                 .stream()
-                                .map(a -> new String[]{method, e.getKey(), a})))
+                                .map(a -> new String[]{prefix + method, e.getKey(), a})))
                 .collect(Collectors.toList());
+    }
+// todo - commonize this
+    private static Collection<String[]> data(Map<String, List<String>> apocProcedureArguments) {
+        return data("", apocProcedureArguments);
     }
 
     @RunWith(Parameterized.class)
