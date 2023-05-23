@@ -19,7 +19,11 @@
 package apoc.coll;
 
 import apoc.result.ListResult;
+import apoc.util.Util;
 import com.google.common.util.concurrent.AtomicDouble;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.Equator;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.math3.stat.descriptive.moment.StandardDeviation;
@@ -29,28 +33,17 @@ import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
+import org.neo4j.kernel.impl.util.ValueUtils;
 import org.neo4j.procedure.Context;
 import org.neo4j.procedure.Description;
 import org.neo4j.procedure.Name;
 import org.neo4j.procedure.Procedure;
 import org.neo4j.procedure.UserFunction;
+import org.neo4j.values.AnyValue;
 
 import java.lang.reflect.Array;
 import java.text.Collator;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
-import java.util.RandomAccess;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -58,6 +51,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static apoc.util.Util.isaBoolean;
+import static apoc.util.Util.toAnyValues;
 import static java.util.Arrays.asList;
 
 public class Coll {
@@ -145,6 +140,7 @@ public class Coll {
         }
         return (avg/(double)list.size());
     }
+
     @UserFunction("apoc.coll.min")
     @Description("Returns the minimum of all values in the given list.")
     public Object min(@Name("values") List<Object> list) {
@@ -389,12 +385,14 @@ public class Coll {
 	    if (list==null || list.isEmpty()) return Stream.empty();
         List<Object> l = new ArrayList<>(list);
         List<List<Object>> result = new ArrayList<>(10);
-        int idx = l.indexOf(value);
+        // todo ...
+        int idx = extracted(l, value);
         while (idx != -1) {
             List<Object> subList = l.subList(0, idx);
             if (!subList.isEmpty()) result.add(subList);
             l = l.subList(idx+1,l.size());
-            idx = l.indexOf(value);
+            // todo ...
+            idx = extracted(l, value);// l.indexOf(value);
         }
         if (!l.isEmpty()) result.add(l);
         return result.stream().map(ListResult::new);
@@ -410,6 +408,7 @@ public class Coll {
                 });
     }
 
+    // todo - this
     @UserFunction("apoc.coll.contains")
     @Description("Returns whether or not the given value exists in the given collection (using a HashSet).")
     public boolean contains(@Name("coll") List<Object> coll, @Name("value") Object value) {
@@ -418,6 +417,7 @@ public class Coll {
 //        int batchSize = 250;
 //        boolean result = (coll.size() < batchSize) ? coll.contains(value) : partitionList(coll, batchSize).parallel().anyMatch(list -> list.contains(value));
     }
+
 
     @UserFunction("apoc.coll.set")
     @Description("Sets the element at the given index to the new value.")
@@ -461,26 +461,58 @@ public class Coll {
         List<Object> list = new ArrayList<>(coll);
         for (long i = index+length-1; i >= index; i--)
         {
+            // todo - remove as an util. --> removeIf(...)
             if (i < list.size()) list.remove( (int) i );
         }
         return list;
     }
 
+
     @UserFunction("apoc.coll.indexOf")
     @Description("Returns the index for the first occurrence of the specified value in the list.")
     public long indexOf(@Name("coll") List<Object> coll, @Name("value") Object value) {
         // return reduce(res=[0,-1], x in $list | CASE WHEN x=$value AND res[1]=-1 THEN [res[0], res[0]+1] ELSE [res[0]+1, res[1]] END)[1] as value
-        if (coll == null || coll.isEmpty()) return -1;
-        return  new ArrayList<>(coll).indexOf(value);
+//        if (coll == null || coll.isEmpty()) return -1;
+        return extracted(coll, value);
     }
 
+    private int extracted(List<Object> coll, Object value) {
+        return ListUtils.indexOf(coll,
+                (i) -> Util.valueEquals(i, value)// ValueUtils.of(i).equals(ValueUtils.of(value))
+        );
+//        for (int i = 0; i < coll.size(); i++) {
+//            if (ValueUtils.of(coll.get(i)).equals(ValueUtils.of(value))) {
+//                return i;
+//            }
+//        }
+//        return -1;
+    }
+
+    // todo - in generale tutti quelli con List<Object>
+
+    // todo - robe con min/max per dire??
+
+    // todo - creare card separata, con i possibili casi simili...
+    //
+
+    // todo - this
     @UserFunction("apoc.coll.containsAll")
     @Description("Returns whether or not all of the given values exist in the given collection (using a HashSet).")
     public boolean containsAll(@Name("coll1") List<Object> coll, @Name("coll2") List<Object> values) {
         if (coll == null || coll.isEmpty() || values == null) return false;
-        return new HashSet<>(coll).containsAll(values);
+        // todo - forse anche questo??
+//        CollectionUtils.containsAll(coll, values, null)
+        Set<Object> objects = new HashSet<>(coll);
+//        values.stream().allMatch(i -> objects.removeIf(i1 -> i1.equals()))
+
+        return values.stream()
+                .allMatch( i -> isaBoolean(objects, i));
+//                .allMatch( i -> isaBoolean(objects, i) objects.stream().anyMatch(i1 -> Util.valueEquals(i, i1)/* i1.equals(i)*/) );
+//                .containsAll(values);
+//        return new HashSet<>(coll).containsAll(values);
     }
 
+    // todo - this
     @UserFunction("apoc.coll.containsSorted")
     @Description("Returns whether or not the given value exists in an already sorted collection (using a binary search).")
     public boolean containsSorted(@Name("coll") List<Object> coll, @Name("value") Object value) {
@@ -492,6 +524,7 @@ public class Coll {
 //        boolean result = (list.size() < batchSize) ? contains.test(list) : partitionList(list, batchSize).parallel().anyMatch(contains);
     }
 
+    // todo - this
     @UserFunction("apoc.coll.containsAllSorted")
     @Description("Returns whether or not all of the given values in the second list exist in an already sorted collection (using a binary search).")
     public boolean containsAllSorted(@Name("coll1") List<Object> coll, @Name("coll2") List<Object> values) {
@@ -505,6 +538,7 @@ public class Coll {
         return true;
     }
 
+    // todo - this
     @UserFunction("apoc.coll.isEqualCollection")
     @Description("Returns true if the two collections contain the same elements with the same cardinality in any order (using a HashMap).")
     public boolean isEqualCollection(@Name("coll") List<Object> first, @Name("values") List<Object> second) {
@@ -518,12 +552,16 @@ public class Coll {
         return map1.equals(map2);
     }
 
+    // todo - this
     @UserFunction("apoc.coll.toSet")
     @Description("Returns a unique list from the given list.")
     public List<Object> toSet(@Name("coll") List<Object> list) {
 	    if (list == null) return null;
-        return new SetBackedList(new LinkedHashSet(list));
+        List<AnyValue> anyValues = Util.toAnyValues(list);
+        return new SetBackedList(new LinkedHashSet(anyValues));
+//        return new SetBackedList(new LinkedHashSet(list));
     }
+
 
     @UserFunction("apoc.coll.sumLongs")
     @Description("Returns the sum of all the numbers in the list.")
@@ -540,6 +578,7 @@ public class Coll {
     @Description("Sorts the given list into ascending order.")
     public List<Object> sort(@Name("coll") List<Object> coll) {
 	    if (coll == null || coll.isEmpty()) return Collections.emptyList();
+//        List<AnyValue> anyValues = Util.toAnyValues(coll);
         List sorted = new ArrayList<>(coll);
         Collections.sort((List<? extends Comparable>) sorted);
         return sorted;
@@ -555,11 +594,11 @@ public class Coll {
         Collections.sort(sorted, (x, y) -> reverseOrder * compare(x.getProperty(cleanedProp, null), y.getProperty(cleanedProp, null)));
         return sorted;
     }
-
     @UserFunction("apoc.coll.sortMaps")
     @Description("Sorts the given list into ascending order, based on the map property indicated by `prop`.")
     public List<Map<String,Object>> sortMaps(@Name("list") List<Map<String,Object>> coll, @Name("prop") String prop) {
 	    if (coll == null || coll.isEmpty()) return Collections.emptyList();
+//        coll = coll.stream().map(i -> i.)
         List<Map<String,Object>> sorted = new ArrayList<>(coll);
         int reverseOrder = reverseOrder(prop);
         String cleanedProp = cleanProperty(prop);
@@ -590,6 +629,7 @@ public class Coll {
         return o1.toString().compareTo(o2.toString());
     }
 
+    // todo - this
     @UserFunction("apoc.coll.union")
     @Description("Returns the distinct union of the two given lists.")
     public List<Object> union(@Name("list1") List<Object> first, @Name("list2") List<Object> second) {
@@ -599,20 +639,28 @@ public class Coll {
         set.addAll(second);
         return new SetBackedList(set);
     }
+
+
+    // todo - this
     @UserFunction("apoc.coll.removeAll")
     @Description("Returns the first list with all elements of the second list removed.")
     public List<Object> removeAll(@Name("list1") List<Object> first, @Name("list2") List<Object> second) {
 		if (first == null) return null;
         List<Object> list = new ArrayList<>(first);
-        if (second!=null) list.removeAll(second);
+        // todo - util
+        if (second!=null) list = Util.removeAll(list, second);// list.removeAll(second);
         return list;
     }
+
+    // todo - this
     @UserFunction("apoc.coll.subtract")
     @Description("Returns the first list as a set with all the elements of the second list removed.")
     public List<Object> subtract(@Name("list1") List<Object> first, @Name("list2") List<Object> second) {
         if (first == null) return null;
         Set<Object> set = new HashSet<>(first);
         if (second!=null) set.removeAll(second);
+//        Set<Object> set = new HashSet<>(toAnyValues(first));
+//        if (second!=null) set.removeAll(toAnyValues(second));
         return new SetBackedList(set);
     }
 
@@ -620,11 +668,17 @@ public class Coll {
     @Description("Returns the distinct intersection of two lists.")
     public List<Object> intersection(@Name("list1") List<Object> first, @Name("list2") List<Object> second) {
         if (first == null || second == null) return Collections.emptyList();
-        Set<Object> set = new HashSet<>(first);
-        set.retainAll(second);
+//        Set<Object> set = new HashSet<>(
+//                CollectionUtils.retainAll(first, second, new ValueEquator())
+//        );
+        Set<Object> set =// new HashSet<>(first);
+//        set = CollectionUtils.retainAll(set, second, new ValueEquator());
+        first.stream().filter(i -> isaBoolean(second, i))
+                .collect(Collectors.toSet());
         return new SetBackedList(set);
     }
 
+    // todo - this - retainAll
     @UserFunction("apoc.coll.disjunction")
     @Description("Returns the disjunct set of two lists.")
     public List<Object> disjunction(@Name("list1") List<Object> first, @Name("list2") List<Object> second) {
@@ -637,6 +691,8 @@ public class Coll {
         set.removeAll(intersection);
         return new SetBackedList(set);
     }
+
+    // todo - this
     @UserFunction("apoc.coll.unionAll")
     @Description("Returns the full union of the two given lists (duplicates included).")
     public List<Object> unionAll(@Name("list1") List<Object> first, @Name("list2") List<Object> second) {
@@ -673,6 +729,7 @@ public class Coll {
         return coll.get(ThreadLocalRandom.current().nextInt(coll.size()));
     }
 
+
     @UserFunction("apoc.coll.randomItems")
     @Description("Returns a list of itemCount random items from the original list (optionally allowing elements in the original list to be selected more than once).")
     public List<Object> randomItems(@Name("coll") List<Object> coll, @Name("itemCount") long itemCount, @Name(value = "allowRepick", defaultValue = "false") boolean allowRepick) {
@@ -697,6 +754,8 @@ public class Coll {
 
         return randomItems;
     }
+
+    // todo - this
     @UserFunction("apoc.coll.containsDuplicates")
     @Description("Returns true if a collection contains duplicate elements.")
     public boolean containsDuplicates(@Name("coll") List<Object> coll) {
@@ -708,6 +767,7 @@ public class Coll {
         return set.size() < coll.size();
     }
 
+    // todo - this
     @UserFunction("apoc.coll.duplicates")
     @Description("Returns a list of duplicate items in the collection.")
     public List<Object> duplicates(@Name("coll") List<Object> coll) {
@@ -727,6 +787,7 @@ public class Coll {
         return new ArrayList(duplicates);
     }
 
+    // todo - this
     @UserFunction("apoc.coll.duplicatesWithCount")
     @Description("Returns a list of duplicate items in the collection and their count, keyed by `item` and `count`.")
     public List<Map<String, Object>> duplicatesWithCount(@Name("coll") List<Object> coll) {
@@ -760,6 +821,7 @@ public class Coll {
         return resultList;
     }
 
+    // todo - this
     @UserFunction("apoc.coll.frequencies")
     @Description("Returns a list of frequencies of the items in the collection, keyed by `item` and `count`.")
     public List<Map<String, Object>> frequencies(@Name("coll") List<Object> coll) {
@@ -791,6 +853,7 @@ public class Coll {
         return resultList;
     }
 
+    // todo - this
     @UserFunction("apoc.coll.frequenciesAsMap")
     @Description("Returns a map of frequencies of the items in the collection, keyed by `item` and `count`.")
     public Map<String, Object> frequenciesAsMap(@Name("coll") List<Object> coll) {
@@ -798,6 +861,7 @@ public class Coll {
         return frequencies(coll).stream().collect(Collectors.toMap(t -> t.get("item").toString(), v-> v.get("count")));
     }
 
+    // todo - this
     @UserFunction("apoc.coll.occurrences")
     @Description("Returns the count of the given item in the collection.")
     public long occurrences(@Name("coll") List<Object> coll, @Name("item") Object item) {
@@ -921,6 +985,7 @@ public class Coll {
         return combinations;
     }
 
+    // todo - this
     @UserFunction("apoc.coll.different")
     @Description("Returns true if all the values in the given list are unique.")
     public boolean different(@Name("coll") List<Object> values) {
@@ -928,6 +993,7 @@ public class Coll {
         return new HashSet(values).size() == values.size();
     }
 
+    // todo - this
     @UserFunction("apoc.coll.dropDuplicateNeighbors")
     @Description("Removes duplicate consecutive objects in the list.")
     public List<Object> dropDuplicateNeighbors(@Name("list") List<Object> list){
