@@ -227,6 +227,79 @@ public class Geocode {
         }
     }
 
+
+    private static class NominationSupplier implements GeocodeSupplier {
+        private static final String[] FORMATTED_KEYS = new String[]{"formatted", "formatted_address", "address", "description", "display_name"};
+        private static final String[] LAT_KEYS = new String[]{"lat", "latitude"};
+        private static final String[] LNG_KEYS = new String[]{"lng", "longitude", "lon"};
+        private Throttler throttler;
+        private String configBase;
+        private String urlTemplate;
+        private String urlTemplateReverse;
+
+        public NominationSupplier(Configuration config, TerminationGuard terminationGuard, String provider) {
+            this.configBase = provider;
+
+            if (!config.containsKey(configKey("url"))) {
+                throw new IllegalArgumentException("Missing 'url' for geocode provider: " + provider);
+            }
+            if (!config.containsKey(configKey("reverse.url"))) {
+                throw new IllegalArgumentException("Missing 'reverse.url' for reverse-geocode provider: " + provider);
+            }
+            urlTemplate = config.getString(configKey("url"));
+            if (!urlTemplate.contains("PLACE")) throw new IllegalArgumentException("Missing 'PLACE' in url template: " + urlTemplate);
+
+            urlTemplateReverse = config.getString(configKey("reverse.url"));
+            if (!urlTemplateReverse.contains("LAT") || !urlTemplateReverse.contains("LNG")) throw new IllegalArgumentException("Missing 'LAT' or 'LNG' in url template: " + urlTemplateReverse);
+
+            this.throttler = new Throttler(terminationGuard, config.getInt(configKey("throttle"), (int) Throttler.DEFAULT_THROTTLE));
+        }
+
+        @SuppressWarnings("unchecked")
+        public Stream<GeoCodeResult> geocode(String address, long maxResults) {
+            if (address.isEmpty()) {
+                return Stream.empty();
+            }
+            throttler.waitForThrottle();
+            String url = urlTemplate.replace("PLACE", Util.encodeUrlComponent(address));
+            Object value = JsonUtil.loadJson(url).findFirst().orElse(null);
+            if (value instanceof List) {
+                return ((List<Map<String, Object>>) value).stream().limit(maxResults).map(data ->
+                        new GeoCodeResult(toDouble(data.get("lat")), toDouble(data.get("lon")), valueOf(data.get("display_name")), data));
+            }
+            throw new RuntimeException("Can't parse geocoding results " + value);
+        }
+
+        @Override
+        public Stream<GeoCodeResult> reverseGeocode(Double latitude, Double longitude) {
+            if (latitude == null || longitude == null) {
+                return Stream.empty();
+            }
+            throttler.waitForThrottle();
+
+            String url = urlTemplateReverse.replace("LAT", latitude.toString()).replace("LNG", longitude.toString());
+            Object value = JsonUtil.loadJson(url).findFirst().orElse(null);
+            if (value instanceof Map) {
+                Map<String, Object> data = (Map<String, Object>) value;
+                return Stream.of(new GeoCodeResult(toDouble(data.get("lat")), toDouble(data.get("lon")), valueOf(data.get("display_name")), (Map<String,Object>)data.get("address")));
+            }
+            throw new RuntimeException("Can't parse reverse-geocoding results " + value);
+        }
+
+        private String findFirstEntry(Map<String, Object> map, String[] keys) {
+            for (String key : keys) {
+                if (map.containsKey(key)) {
+                    return valueOf(map.get(key));
+                }
+            }
+            return "";
+        }
+
+        private String configKey(String name) {
+            return configBase + "." + name;
+        }
+    }
+
     private static class GoogleSupplier implements GeocodeSupplier {
         private final Throttler throttler;
         private Configuration config;
@@ -326,6 +399,7 @@ public class Geocode {
         return switch (supplier) {
             case "google" -> new GoogleSupplier(activeConfig, terminationGuard);
             case "osm" -> new OSMSupplier(activeConfig, terminationGuard);
+            case "nominatim" -> new NominationSupplier(activeConfig, terminationGuard, supplier);
             default -> new SupplierWithKey(activeConfig, terminationGuard, supplier);
         };
     }
