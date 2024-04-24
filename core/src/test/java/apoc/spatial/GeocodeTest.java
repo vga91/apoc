@@ -91,6 +91,29 @@ public class GeocodeTest {
     // -- with apoc config
 
     @Test
+    public void testGeocode() {
+        String providerName = "nominatim";
+        apocConfig().setProperty(Geocode.PREFIX + ".provider", providerName);
+//        apocConfig().setProperty(Geocode.PREFIX + ".provider", "osm");
+        apocConfig().setProperty(Geocode.PREFIX + ".nominatim" + ".key", "");
+        String baseUrl = "https://nominatim.openstreetmap.org";
+//        String baseUrl = "https://svilgeocoding.utenze.bankit.it/nominatim";
+        apocConfig().setProperty(Geocode.PREFIX + ".nominatim" + ".url", baseUrl + "/search.php?format=json&q=PLACE");
+        apocConfig().setProperty(Geocode.PREFIX + ".nominatim" + ".reverse.url", baseUrl + "/reverse.php?format=json&lat=LAT&lon=LNG&key=KEY");
+        
+//        apocConfig().setProperty(Geocode.PREFIX + ".provider", providerName);
+//        apocConfig().setProperty(Geocode.PREFIX + ".nominatim" + ".key", "");
+//        apocConfig().setProperty(Geocode.PREFIX + ".nominatim" + ".url", "https://svilgeocoding.utenze.bankit.it/nominatim/search.php?q=PLACE");
+//        apocConfig().setProperty(Geocode.PREFIX + ".nominatim" + ".reverse.url", "https://svilgeocoding.utenze.bankit.it/nominatim/reverse.php?format=json&lat=LAT&lon=LNG&key=KEY");
+
+
+        String s = db.executeTransactionally("call apoc.spatial.geocode('via nazionale - Roma')", Map.of(), Result::resultAsString);
+        System.out.println("s = " + s);
+        String s1 = db.executeTransactionally("call apoc.spatial.reverseGeocode(41.1, 12.6)", Map.of(), Result::resultAsString);
+        System.out.println("s1 = " + s1);
+    }
+
+    @Test
     public void testGeocodeWithBlockedAddressWithApocConf() {
         final String geocodeBaseConfig = Geocode.PREFIX + ".opencage";
         apocConfig().setProperty(geocodeBaseConfig + ".key", "myKey");
